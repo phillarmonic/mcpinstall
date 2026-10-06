@@ -1,7 +1,7 @@
 [project]
-name = "docs"
+name = "mcpinstall-docs"
 version = "0.1.0"
-description = "Add your description here"
+description = "Documentation site for mcpinstall"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = []
@@ -9,4 +9,5 @@ dependencies = []
 [dependency-groups]
 dev = [
     "zensical>=0.0.68",
+    "zensical-glossary>=1.2.1",
 ]
