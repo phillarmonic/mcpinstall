@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/phillarmonic/mcpinstall/platform"
+	"github.com/phillarmonic/mcpinstall/platform/common"
 )
 
 // isolateEnv clears the variables configDir reads so a developer's real
@@ -70,6 +71,28 @@ func TestProjectScopeWritesOpenCodeJSON(t *testing.T) {
 	// OpenCode names its server table "mcp"; the other hosts' keys must not appear.
 	if _, present := entry["args"]; present {
 		t.Errorf("the entry carries the other hosts' args key: %#v", entry)
+	}
+}
+
+func TestInstallHTTPWritesRemoteEntry(t *testing.T) {
+	isolateEnv(t)
+	root := t.TempDir()
+	opts := common.Options{
+		ServerName: "test-server",
+		Transport:  common.TransportHTTP,
+		URL:        "https://example.test/mcp",
+		Headers:    map[string]string{"Authorization": "Bearer token"},
+	}
+	if _, _, err := (Adapter{}).Install(projectTarget(root), opts); err != nil {
+		t.Fatal(err)
+	}
+	entry := readMCP(t, filepath.Join(root, "opencode.json"))["test-server"].(map[string]any)
+	if entry["type"] != "remote" || entry["url"] != "https://example.test/mcp" || entry["enabled"] != true {
+		t.Fatalf("entry = %#v", entry)
+	}
+	headers, ok := entry["headers"].(map[string]any)
+	if !ok || headers["Authorization"] != "Bearer token" {
+		t.Fatalf("headers = %#v", entry["headers"])
 	}
 }
 

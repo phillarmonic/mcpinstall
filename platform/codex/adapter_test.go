@@ -8,6 +8,7 @@ import (
 	"github.com/pelletier/go-toml/v2"
 
 	"github.com/phillarmonic/mcpinstall/platform"
+	"github.com/phillarmonic/mcpinstall/platform/common"
 )
 
 // readEntry loads the managed server table from a Codex configuration.
@@ -93,6 +94,69 @@ func TestInstallPreservesExistingConfig(t *testing.T) {
 	}
 	if cfg["model"] != "gpt-5" {
 		t.Fatal("an unrelated setting was dropped")
+	}
+}
+
+func TestInstallGlobalHonoursCodexHome(t *testing.T) {
+	home := t.TempDir()
+	codexHome := filepath.Join(home, "codex-home")
+	t.Setenv("CODEX_HOME", codexHome)
+
+	created, _, err := Adapter{}.Install(
+		platform.Target{Scope: platform.ScopeGlobal, Root: home},
+		testOptions,
+	)
+	if err != nil {
+		t.Fatalf("Install: %v", err)
+	}
+	want := filepath.Join(codexHome, "config.toml")
+	if len(created) != 1 || created[0] != want {
+		t.Fatalf("created = %v, want [%s]", created, want)
+	}
+}
+
+func TestInstallHTTPWritesHTTPHeaders(t *testing.T) {
+	root := t.TempDir()
+	opts := common.Options{
+		ServerName: "test-server",
+		Transport:  common.TransportHTTP,
+		URL:        "https://example.test/mcp",
+		Headers:    map[string]string{"Authorization": "Bearer token"},
+	}
+	if _, _, err := (Adapter{}).Install(platform.Target{Scope: platform.ScopeProject, Root: root}, opts); err != nil {
+		t.Fatalf("Install: %v", err)
+	}
+	entry := readEntry(t, filepath.Join(root, ".codex", "config.toml"))
+	if entry["url"] != "https://example.test/mcp" {
+		t.Fatalf("url = %v", entry["url"])
+	}
+	headers, ok := entry["http_headers"].(map[string]any)
+	if !ok || headers["Authorization"] != "Bearer token" {
+		t.Fatalf("http_headers = %#v", entry["http_headers"])
+	}
+	if _, ok := entry["bearer_token_env_var"]; ok {
+		t.Fatal("a literal header install should not name an env var")
+	}
+}
+
+func TestInstallHTTPCanNameTheTokenVariable(t *testing.T) {
+	root := t.TempDir()
+	opts := common.Options{
+		ServerName:  "test-server",
+		Transport:   common.TransportHTTP,
+		URL:         "https://example.test/mcp",
+		TokenEnvVar: "DEMO_TOKEN",
+		Headers:     map[string]string{"Authorization": "Bearer token"},
+	}
+	if _, _, err := (Adapter{}).Install(platform.Target{Scope: platform.ScopeProject, Root: root}, opts); err != nil {
+		t.Fatalf("Install: %v", err)
+	}
+	entry := readEntry(t, filepath.Join(root, ".codex", "config.toml"))
+	if entry["bearer_token_env_var"] != "DEMO_TOKEN" {
+		t.Fatalf("bearer_token_env_var = %v", entry["bearer_token_env_var"])
+	}
+	if _, ok := entry["http_headers"]; ok {
+		t.Fatal("the token was copied into the file as well")
 	}
 }
 

@@ -109,18 +109,30 @@ func TestRunReportsAUserLevelOnlyHostWithoutBlockingTheRest(t *testing.T) {
 	root := t.TempDir()
 
 	results, err := Run(request(root, catalog.CopilotJetBrains, catalog.Claude), false)
-	if err == nil {
-		t.Fatal("expected an error when a host has no project-scope configuration")
+	if err != nil {
+		t.Fatalf("a user-level-only host should be skipped, not fail the run: %v", err)
 	}
 	if len(results) != 2 {
 		t.Fatalf("got %d results, want one per host", len(results))
 	}
-	if !strings.Contains(results[0].Error, "--scope global") {
-		t.Fatalf("the refusal does not say what to do instead: %q", results[0].Error)
+	if len(results[0].Warnings) == 0 || !strings.Contains(results[0].Warnings[0], "--scope global") {
+		t.Fatalf("the skip does not say what to do instead: %q", results[0].Warnings)
 	}
 	// The healthy host must still have been installed.
 	if _, statErr := os.Stat(filepath.Join(root, ".mcp.json")); statErr != nil {
 		t.Fatalf("a failing host blocked a healthy one: %v", statErr)
+	}
+}
+
+func TestRunExplainsAHostWithoutAWriter(t *testing.T) {
+	root := t.TempDir()
+
+	results, err := Run(request(root, catalog.DSH), false)
+	if err == nil {
+		t.Fatal("expected an error for a host with no writer")
+	}
+	if len(results) != 1 || !strings.Contains(results[0].Error, "DeepSeek Harness") {
+		t.Fatalf("results = %#v, want the host's guidance", results)
 	}
 }
 

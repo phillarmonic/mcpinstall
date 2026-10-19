@@ -20,6 +20,20 @@ func run(t *testing.T, args ...string) (int, string, string) {
 	return code, stdout.String(), stderr.String()
 }
 
+// clearCLIEnv removes the relocation variables a developer machine may have
+// set, so a test that writes global configuration stays inside its root.
+func clearCLIEnv(t *testing.T) {
+	t.Helper()
+	for _, name := range []string{
+		"XDG_CONFIG_HOME", "APPDATA", "LOCALAPPDATA",
+		"CLAUDE_CONFIG_DIR", "CODEX_HOME", "GROK_HOME", "KIMI_CODE_HOME",
+		"KIRO_HOME", "COPILOT_HOME", "PRIME_AGENT_CODING_AGENT_DIR",
+		"PI_CODING_AGENT_DIR", "OMP_PROFILE", "PI_PROFILE", "PI_CONFIG_DIR",
+	} {
+		t.Setenv(name, "")
+	}
+}
+
 func TestNoArgumentsIsAUsageError(t *testing.T) {
 	// Bare invocation is handled by main as the stdio server, so the CLI must
 	// never treat an empty argument list as "serve".
@@ -69,13 +83,13 @@ func TestInstallAllFillsInEveryProjectHost(t *testing.T) {
 	root := t.TempDir()
 
 	code, stdout, stderr := run(t, "install", "--host", "all", "--root", root)
-	// Copilot for JetBrains reads a user-level file and has no project-scope
-	// equivalent, so it is the one host a project-scope run cannot configure.
-	if code != 1 {
-		t.Fatalf("exit code = %d, want 1\nstdout = %q\nstderr = %q", code, stdout, stderr)
+	// User-level-only hosts are skipped with a warning, so one host that has
+	// no project-scope file does not fail the whole run.
+	if code != 0 {
+		t.Fatalf("exit code = %d, want 0\nstdout = %q\nstderr = %q", code, stdout, stderr)
 	}
-	if !strings.Contains(stdout, "copilot-jetbrains: error:") {
-		t.Fatalf("stdout does not report the refusal: %q", stdout)
+	if !strings.Contains(stdout, "copilot-jetbrains: warning: skipped: no project-level configuration") {
+		t.Fatalf("stdout does not report the skip: %q", stdout)
 	}
 	for _, relative := range []string{
 		".mcp.json",
@@ -95,6 +109,13 @@ func TestInstallAllGlobalScopeStaysInsideTheRoot(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", "")
 	t.Setenv("LOCALAPPDATA", "")
 	t.Setenv("APPDATA", "")
+	for _, name := range []string{
+		"CLAUDE_CONFIG_DIR", "CODEX_HOME", "GROK_HOME", "KIMI_CODE_HOME",
+		"KIRO_HOME", "COPILOT_HOME", "PRIME_AGENT_CODING_AGENT_DIR",
+		"PI_CODING_AGENT_DIR", "OMP_PROFILE", "PI_PROFILE", "PI_CONFIG_DIR",
+	} {
+		t.Setenv(name, "")
+	}
 
 	root := t.TempDir()
 
@@ -116,9 +137,74 @@ func TestInstallAllGlobalScopeStaysInsideTheRoot(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// One file per host, all of them inside the temporary root.
-	if len(written) != len(catalog.Names()) {
-		t.Fatalf("wrote %d files under the root, want one per host: %v", len(written), written)
+	// A host writes at most one file, and a global-only run cannot write the
+	// project-only host (swival) or a stdio entry for the HTTP-only host
+	// (zcode), so the count is bounded by the catalog rather than equal to it.
+	if len(written) == 0 || len(written) > len(catalog.Names()) {
+		t.Fatalf("wrote %d files under the root, want at most one per host: %v", len(written), written)
+	}
+	for _, relative := range []string{
+		filepath.Join(".gemini", "settings.json"),
+		filepath.Join(".openclaw", "config.json"),
+		filepath.Join(".grok", "config.toml"),
+		filepath.Join(".config", "zed", "settings.json"),
+	} {
+		if _, err := os.Stat(filepath.Join(root, relative)); err != nil {
+			t.Fatalf("expected %s: %v", relative, err)
+		}
+	}
+}
+
+func TestInstallHTTPFlagsWriteTheRemoteEntry(t *testing.T) {
+	clearCLIEnv(t)
+	root := t.TempDir()
+
+	code, stdout, stderr := run(t,
+		"install", "--host", "gemini", "--scope", "global", "--root", root,
+		"--url", "https://example.test/mcp", "--header", "Authorization=Bearer token",
+	)
+	if code != 0 {
+		t.Fatalf("exit code = %d, want 0\nstdout = %q\nstderr = %q", code, stdout, stderr)
+	}
+
+	data, err := os.ReadFile(filepath.Join(root, ".gemini", "settings.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var cfg map[string]any
+	if err := json.Unmarshal(data, &cfg); err != nil {
+		t.Fatal(err)
+	}
+	servers, ok := cfg["mcpServers"].(map[string]any)
+	if !ok {
+		t.Fatalf("mcpServers missing: %#v", cfg)
+	}
+	entry, ok := servers[testSpec.Name].(map[string]any)
+	if !ok {
+		t.Fatalf("entry missing: %#v", servers)
+	}
+	if entry["httpUrl"] != "https://example.test/mcp" {
+		t.Fatalf("httpUrl = %v", entry["httpUrl"])
+	}
+	headers, ok := entry["headers"].(map[string]any)
+	if !ok || headers["Authorization"] != "Bearer token" {
+		t.Fatalf("headers = %#v", entry["headers"])
+	}
+}
+
+func TestInstallHTTPTransportReachesTheHTTPOnlyHost(t *testing.T) {
+	clearCLIEnv(t)
+	root := t.TempDir()
+
+	code, stdout, stderr := run(t,
+		"install", "--host", "zcode", "--scope", "global", "--root", root,
+		"--transport", "http", "--url", "https://example.test/mcp",
+	)
+	if code != 0 {
+		t.Fatalf("exit code = %d, want 0\nstdout = %q\nstderr = %q", code, stdout, stderr)
+	}
+	if _, err := os.Stat(filepath.Join(root, ".zcode", "cli", "config.json")); err != nil {
+		t.Fatalf("expected the ZCode config: %v", err)
 	}
 }
 
@@ -276,9 +362,23 @@ func TestHostsListsEveryAdapter(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("exit code = %d, stderr = %q", code, stderr)
 	}
-	for _, name := range []string{"claude", "codex", "copilot", "copilot-jetbrains", "cursor", "opencode"} {
+	for _, name := range []string{
+		"claude", "codex", "copilot", "copilot-jetbrains", "cursor", "opencode",
+		"gemini", "openclaw", "grok", "muse", "prime-agent",
+	} {
 		if !strings.Contains(stdout, name) {
 			t.Fatalf("stdout is missing %q: %q", name, stdout)
+		}
+	}
+	for _, name := range []string{"dsh", "pi"} {
+		found := false
+		for line := range strings.SplitSeq(stdout, "\n") {
+			if strings.HasPrefix(line, name) && strings.Contains(line, "guidance only") {
+				found = true
+			}
+		}
+		if !found {
+			t.Fatalf("stdout does not mark %s as guidance only: %q", name, stdout)
 		}
 	}
 	// The opencode row must report its own server key, not another host's.
@@ -299,7 +399,7 @@ func TestHostsListsEveryAdapter(t *testing.T) {
 	if !strings.Contains(stdout, "copilot-jetbrains json") {
 		t.Fatalf("the host column is misaligned: %q", stdout)
 	}
-	if !strings.Contains(stdout, "every host listed above") {
+	if !strings.Contains(stdout, "every supported MCP host listed above") {
 		t.Fatalf("stdout does not explain the all selector: %q", stdout)
 	}
 }

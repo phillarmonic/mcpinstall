@@ -1,0 +1,267 @@
+package hosts
+
+import "github.com/phillarmonic/mcpinstall/platform"
+
+// descriptors is the host matrix. Each entry names one host's path, server
+// table, and documented entry shape.
+var descriptors = []Descriptor{
+	{
+		Host:  "claude-desktop",
+		Label: "Claude Desktop MCP settings",
+		Capabilities: platform.Capabilities{
+			MCP: true, Format: "json", ServersKey: "mcpServers",
+		},
+		Scopes: []platform.Scope{platform.ScopeGlobal},
+		Path:   claudeDesktopPath,
+		Kind:   JSONTop,
+		Key:    "mcpServers",
+		Entry:  claudeDesktopEntry,
+	},
+	{
+		Host:  "gemini",
+		Label: "Gemini CLI MCP settings",
+		Capabilities: platform.Capabilities{
+			MCP: true, Format: "json", ServersKey: "mcpServers",
+		},
+		Scopes: []platform.Scope{platform.ScopeGlobal},
+		Path:   geminiPath,
+		Kind:   JSONTop,
+		Key:    "mcpServers",
+		Entry:  geminiEntry,
+	},
+	{
+		Host:  "openclaw",
+		Label: "OpenClaw MCP settings",
+		Capabilities: platform.Capabilities{
+			MCP: true, Format: "json", ServersKey: "mcp.servers",
+		},
+		Scopes: []platform.Scope{platform.ScopeGlobal},
+		Path:   openclawPath,
+		Kind:   JSONNested,
+		Key:    "mcp.servers",
+		Entry:  openclawEntry,
+	},
+	{
+		Host:  "omp",
+		Label: "Oh My Pi MCP settings",
+		Capabilities: platform.Capabilities{
+			MCP: true, Format: "json", ServersKey: "mcpServers",
+		},
+		Scopes: []platform.Scope{platform.ScopeGlobal},
+		Path:   ompPath,
+		Kind:   JSONTop,
+		Key:    "mcpServers",
+		Entry:  ompEntry,
+	},
+	{
+		Host:  "antigravity",
+		Label: "Antigravity CLI MCP settings",
+		Capabilities: platform.Capabilities{
+			MCP: true, Format: "json", ServersKey: "mcpServers",
+		},
+		Scopes: []platform.Scope{platform.ScopeGlobal},
+		Path:   antigravityPath,
+		Kind:   JSONTop,
+		Key:    "mcpServers",
+		Entry:  antigravityEntry,
+	},
+	{
+		Host:  "zero",
+		Label: "Zero MCP settings",
+		Capabilities: platform.Capabilities{
+			MCP: true, Format: "json", ServersKey: "mcp.servers",
+		},
+		Scopes: []platform.Scope{platform.ScopeGlobal},
+		Path:   zeroPath,
+		Kind:   JSONNested,
+		Key:    "mcp.servers",
+		Entry:  chooseStdioHTTP(typedStdio("stdio"), typedHTTP("http")),
+	},
+	{
+		Host:  "zcode",
+		Label: "ZCode MCP settings",
+		Capabilities: platform.Capabilities{
+			MCP: true, Format: "json", ServersKey: "mcp.servers",
+		},
+		Scopes: []platform.Scope{platform.ScopeGlobal},
+		Path:   zcodePath,
+		Kind:   JSONNested,
+		Key:    "mcp.servers",
+		Entry:  zcodeEntry,
+	},
+	{
+		Host:  "devin",
+		Label: "Devin CLI MCP settings",
+		Capabilities: platform.Capabilities{
+			MCP: true, Format: "json", ServersKey: "mcpServers",
+		},
+		Scopes: []platform.Scope{platform.ScopeGlobal},
+		Path:   devinPath,
+		Kind:   JSONTop,
+		Key:    "mcpServers",
+		Entry:  devinEntry,
+	},
+	{
+		Host:  "grok",
+		Label: "Grok Build CLI MCP settings",
+		Capabilities: platform.Capabilities{
+			MCP: true, Format: "toml", ServersKey: "mcp_servers",
+		},
+		Scopes: []platform.Scope{platform.ScopeGlobal},
+		Path:   grokPath,
+		Kind:   TOMLTop,
+		Key:    "mcp_servers",
+		Entry:  grokEntry,
+	},
+	{
+		Host:  "kimi",
+		Label: "Kimi Code MCP settings",
+		Capabilities: platform.Capabilities{
+			MCP: true, Format: "json", ServersKey: "mcpServers",
+		},
+		Scopes: []platform.Scope{platform.ScopeGlobal},
+		Path:   kimiPath,
+		Kind:   JSONTop,
+		Key:    "mcpServers",
+		Entry:  chooseStdioHTTP(plainStdio, plainHTTP),
+	},
+	{
+		Host:  "kiro",
+		Label: "Kiro CLI MCP settings",
+		Capabilities: platform.Capabilities{
+			MCP: true, Format: "json", ServersKey: "mcpServers",
+		},
+		Scopes:   []platform.Scope{platform.ScopeGlobal},
+		Path:     kiroPath,
+		Kind:     JSONTop,
+		Key:      "mcpServers",
+		Validate: validateKiroURL,
+		Entry:    chooseStdioHTTP(plainStdio, plainHTTP),
+	},
+	{
+		Host:  "command-code",
+		Label: "Command Code MCP settings",
+		Capabilities: platform.Capabilities{
+			MCP: true, Format: "json", ServersKey: "mcpServers",
+		},
+		Scopes: []platform.Scope{platform.ScopeGlobal},
+		Path:   commandCodePath,
+		Kind:   JSONTop,
+		Key:    "mcpServers",
+		Entry:  commandCodeEntry,
+	},
+	{
+		Host:  "ibm-bob",
+		Label: "IBM Bob MCP settings",
+		Capabilities: platform.Capabilities{
+			MCP: true, Format: "json", ServersKey: "mcpServers",
+		},
+		Scopes: []platform.Scope{platform.ScopeGlobal},
+		Path:   ibmBobPath,
+		Kind:   JSONTop,
+		Key:    "mcpServers",
+		Entry:  ibmBobEntry,
+	},
+	{
+		Host:  "copilot-cli",
+		Label: "GitHub Copilot CLI MCP settings",
+		Capabilities: platform.Capabilities{
+			MCP: true, Format: "json", ServersKey: "mcpServers",
+		},
+		Scopes: []platform.Scope{platform.ScopeGlobal},
+		Path:   copilotCLIPath,
+		Kind:   JSONTop,
+		Key:    "mcpServers",
+		Entry:  copilotCLIEntry,
+	},
+	{
+		Host:  "droid",
+		Label: "Factory Droid MCP settings",
+		Capabilities: platform.Capabilities{
+			MCP: true, Format: "json", ServersKey: "mcpServers",
+		},
+		Scopes: []platform.Scope{platform.ScopeGlobal},
+		Path:   droidPath,
+		Kind:   JSONTop,
+		Key:    "mcpServers",
+		Entry:  droidEntry,
+	},
+	{
+		Host:  "swival",
+		Label: "Swival MCP settings",
+		Capabilities: platform.Capabilities{
+			MCP: true, Format: "json", ServersKey: "mcpServers",
+		},
+		Scopes: []platform.Scope{platform.ScopeProject},
+		Path:   swivalPath,
+		Kind:   JSONTop,
+		Key:    "mcpServers",
+		Entry:  swivalEntry,
+	},
+	{
+		Host:  "zed",
+		Label: "Zed MCP settings",
+		Capabilities: platform.Capabilities{
+			MCP: true, Format: "json", ServersKey: "context_servers",
+		},
+		Scopes: []platform.Scope{platform.ScopeGlobal},
+		Path:   zedPath,
+		Kind:   JSONTop,
+		Key:    "context_servers",
+		Entry:  zedEntry,
+	},
+	{
+		Host:  "muse",
+		Label: "Muse Code MCP settings",
+		Capabilities: platform.Capabilities{
+			MCP: true, Format: "json", ServersKey: "mcpServers",
+		},
+		Scopes: []platform.Scope{platform.ScopeGlobal},
+		Path:   musePath,
+		Kind:   Muse,
+		Key:    "mcpServers",
+		Entry:  museEntry,
+	},
+	{
+		Host:  "prime-agent",
+		Label: "Prime Agent MCP settings",
+		Capabilities: platform.Capabilities{
+			MCP: true, Format: "json", ServersKey: "mcpServers",
+		},
+		Scopes:   []platform.Scope{platform.ScopeGlobal},
+		Path:     primeAgentPath,
+		Kind:     JSONTop,
+		Key:      "mcpServers",
+		Validate: validatePrimeAgentName,
+		Entry:    primeAgentEntry,
+	},
+	{
+		Host:  "opencode2",
+		Label: "OpenCode V2 MCP settings",
+		Capabilities: platform.Capabilities{
+			MCP: true, Format: "json", ServersKey: "mcp.servers",
+		},
+		Path:  opencode2Path,
+		Kind:  JSONNested,
+		Key:   "mcp.servers",
+		Entry: opencode2Entry,
+	},
+	{
+		Host:  "dsh",
+		Label: "DeepSeek Harness MCP settings",
+		Capabilities: platform.Capabilities{
+			MCP: false,
+		},
+		Unsupported: "DeepSeek Harness has no fixed MCP configuration file; merge the Cordis patch fragment by hand",
+		Entry:       unsupported("DeepSeek Harness has no fixed MCP configuration file"),
+	},
+	{
+		Host:  "pi",
+		Label: "Pi MCP settings",
+		Capabilities: platform.Capabilities{
+			MCP: false,
+		},
+		Unsupported: "Pi has no native mcp.json; install its generated bridge extension instead",
+		Entry:       unsupported("Pi has no native mcp.json"),
+	},
+}

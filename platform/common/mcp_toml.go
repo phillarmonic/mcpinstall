@@ -87,6 +87,14 @@ func RemoveTOMLMCPServer(path, label, serversKey, serverName string, opts Option
 	return WriteTOML(path, cfg, opts)
 }
 
+// ReadTOMLObject loads path as a TOML table. The bool reports whether the file
+// held content that could not be parsed, which callers degrade to a warning so
+// a malformed config is never clobbered. It is exported for host writers that
+// merge into a table the MCP writers do not own.
+func ReadTOMLObject(path string) (map[string]any, bool, error) {
+	return readTOMLObject(path)
+}
+
 // readTOMLObject loads path as a TOML table. The bool reports whether the file
 // held content that could not be parsed, which callers degrade to a warning so
 // a malformed config is never clobbered.

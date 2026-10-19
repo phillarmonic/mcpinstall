@@ -9,21 +9,32 @@ icon: lucide/book-open
 ## MCP
 
 The Model Context Protocol, a standard for connecting a model to external tools
-and data. `mcpinstall` registers a stdio MCP server, one the host launches as a
-child process and talks to over standard input and output.
+and data. `mcpinstall` registers either a stdio server, which the host launches
+as a child process and talks to over standard input and output, or an HTTP
+server reached at a URL.
 
 ## MCP server entry
 
-The record written into a host configuration: a command and its arguments. The
-shape varies by host. Most JSON hosts use a command plus an arguments array,
-Codex adds a TOML approval key, and OpenCode merges the command and arguments
-into one array.
+The record written into a host configuration: a command and its arguments for a
+stdio server, or a URL and headers for an HTTP one. The shape varies by host.
+Most JSON hosts use a command plus an arguments array, Codex adds a TOML
+approval key, Gemini names the URL `httpUrl`, Antigravity names it `serverUrl`,
+and OpenCode merges the command and arguments into one array.
+
+## Transport
+
+Whether a server is launched locally (`stdio`) or reached remotely (`http`). A
+Spec that sets a URL infers `http`; otherwise it is `stdio`. Most hosts accept
+both, ZCode accepts only HTTP, and Claude Desktop bridges HTTP through the
+`mcp-remote` stdio shim.
 
 ## Host
 
 A desktop or editor agent that reads a configuration file to discover MCP
-servers: Claude Code, Cursor, Copilot in VS Code, Copilot for JetBrains, Codex,
-or OpenCode.
+servers. The catalog covers Claude Code, Cursor, Copilot in VS Code and
+JetBrains, Codex, OpenCode V1/V2, Claude Desktop, Gemini, OpenClaw, OMP,
+Antigravity, Zero, ZCode, Devin, Grok, Kimi, Kiro, Command Code, IBM Bob,
+Copilot CLI, Droid, Swival, Zed, Muse, and Prime Agent.
 
 ## Adapter
 
@@ -39,8 +50,9 @@ The single registry that maps a `--host` name onto an adapter, expands the
 ## Capabilities
 
 What an adapter can configure: its format (`json` or `toml`), its server table
-key (`mcpServers`, `servers`, `mcp_servers`, or `mcp`), and whether the host
-has a machine-readable MCP configuration.
+key (`mcpServers`, `servers`, `mcp_servers`, `mcp`, `mcp.servers`, or
+`context_servers`), and whether the host has a machine-readable MCP
+configuration.
 
 ## Scope
 
@@ -64,15 +76,41 @@ plus the root directory.
 
 ## Spec
 
-The struct a caller supplies to describe one server: its name, command,
-guidance marker, embedded guidance tree, and any former names. It is the only
+The struct a caller supplies to describe one server: its name, command or URL,
+transport, headers, guidance marker, embedded guidance tree, any former names,
+and the optional Agent Skills and lifecycle hooks. It is the only
 project-specific input the module needs.
 
 ## Marker
 
 The short prefix that namespaces the managed guidance section and the
 user-level Cursor rule. A marker of `mytool` produces the
-`<!-- mytool-guidance:begin -->` markers and `mytool.mdc`.
+`<!-- mytool-guidance:begin -->` markers and `mytool.mdc`. It is also the
+default ownership token for skills and hooks.
+
+## Agent Skill
+
+A directory containing a `SKILL.md` file that an agent loads on demand. The
+installer writes `<skills-root>/<name>/SKILL.md` and embeds
+`<!-- <marker>-managed: skill -->` after the frontmatter.
+
+## Lifecycle hook
+
+A host event that runs a command, such as session start or a tool call. A
+`Hook` names a portable event and the command; each host descriptor maps the
+event onto its own vocabulary and configuration shape.
+
+## Portable event
+
+The host-neutral name a caller uses for a lifecycle boundary, such as
+`session-start` or `pre-tool-use`. A host with no equivalent skips it with a
+warning.
+
+## Hook marker
+
+The ownership token for hook entries. Shell-form commands must contain it;
+Zero, ZCode, and Kiro use it as the prefix of their generated id or name. It
+defaults to the Spec [marker](#marker).
 
 ## Guidance
 

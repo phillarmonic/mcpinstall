@@ -20,6 +20,10 @@ The command set is identical for every caller.
 | `uninstall-guidance` | Remove project agent guidance. |
 | `global-guidance install` | Install user-level agent guidance. |
 | `global-guidance uninstall` | Remove user-level agent guidance. |
+| `install-skills` | Install the Spec's Agent Skills. |
+| `uninstall-skills` | Remove the Spec's Agent Skills. |
+| `install-hooks` | Install the Spec's lifecycle hooks. |
+| `uninstall-hooks` | Remove the Spec's lifecycle hooks. |
 | `hosts` | List the supported hosts and their capabilities. |
 | `version` | Print the version. |
 
@@ -32,7 +36,11 @@ The command set is identical for every caller.
 | `--host` | required | Comma-separated hosts, or `all`. |
 | `--scope` | `project` | `project` or `global`. |
 | `--root` | cwd, or home for global | Directory the scope resolves against. |
-| `--command` | the Spec command | Executable hosts launch. |
+| `--command` | the Spec command | Executable hosts launch for a stdio entry. |
+| `--transport` | inferred | `stdio` or `http`; a URL implies `http`. |
+| `--url` | the Spec URL | Remote MCP endpoint for an HTTP entry. |
+| `--header` | the Spec headers | HTTP header as `name=value`; repeatable. |
+| `--token-env-var` | the Spec value | Environment variable holding the bearer for hosts that support indirection. |
 | `--force` | `false` | Overwrite an existing managed entry. |
 | `--dry-run` | `false` | Report pending changes without writing. |
 | `--format` | `text` | `text` or `json`. |
@@ -41,8 +49,15 @@ The command set is identical for every caller.
 mytool install --host claude
 mytool install --host claude,cursor --scope global
 mytool install --host all --command /opt/mytool/mytool-mcp
+mytool install --host gemini --scope global --url https://mytool.example.com/mcp \
+  --header 'Authorization=Bearer token'
 mytool uninstall --host codex --dry-run
 ```
+
+A host that has no configuration for the requested scope is skipped with a
+warning, so `--host all --scope project` still configures the project hosts.
+ZCode is HTTP-only: a stdio run skips it with a warning rather than failing the
+run.
 
 Text output names the scope and root, one line per host, and the paths it wrote
 or removed:
@@ -131,13 +146,64 @@ mytool global-guidance install
 mytool global-guidance uninstall --harness codex
 ```
 
+## install-skills and uninstall-skills
+
+Write or remove the `SKILL.md` files declared by `Spec.Skills`. Each skill lands
+under the host's skills root, marked with `<!-- <marker>-managed: skill -->`.
+An unmanaged same-named skill is refused unless `--force` is passed.
+
+| Flag | Default | Meaning |
+| --- | --- | --- |
+| `--agent` | required | `claude`, `agents`, `devin`, `grok`, `copilot-cli`, `hermes`, `both`, or `all`. |
+| `--scope` | `project` | `project` or `global`. |
+| `--root` | cwd, or home for global | Directory the scope resolves against. |
+| `--force` | `false` | Replace a same-named skill that is not managed. |
+| `--dry-run` | `false` | Report pending changes without writing. |
+| `--format` | `text` | `text` or `json`. |
+
+```bash
+mytool install-skills --agent both
+mytool install-skills --agent all --scope global
+mytool uninstall-skills --agent claude
+```
+
+See [Skills and hooks](skills-hooks.md#agent-skills) for the per-host roots.
+
+## install-hooks and uninstall-hooks
+
+Write or remove lifecycle hooks in the host's native configuration. Portable
+events are mapped onto each host's vocabulary; a re-apply replaces only this
+tool's entries and preserves other tools' hooks.
+
+| Flag | Default | Meaning |
+| --- | --- | --- |
+| `--agent` | required | Comma-separated hooks hosts, or `all`. |
+| `--scope` | `global` | `global`, or `project` for Claude Code. |
+| `--root` | cwd, or home for global | Directory the scope resolves against. |
+| `--dry-run` | `false` | Report pending changes without writing. |
+| `--format` | `text` | `text` or `json`. |
+
+```bash
+mytool install-hooks --agent claude
+mytool install-hooks --agent all --scope global
+mytool uninstall-hooks --agent cursor
+```
+
+Only Claude Code has a project-level hook file. `--agent all --scope project`
+configures Claude and skips the global-only hosts with a warning. See
+[Skills and hooks](skills-hooks.md#lifecycle-hooks) for the host matrix and the
+unsupported hosts.
+
 ## hosts
 
 ```bash
 mytool hosts
 ```
 
-Prints one line per host with its format, server key, and the `all` meta name.
+Prints one line per MCP host with its format and server key, marks a host with
+no writer as `guidance only`, and explains the `all` meta name. `all` expands
+only to the supported hosts. Agent Skills and hooks use separate matrices; see
+[Skills and hooks](skills-hooks.md).
 
 ## version
 
@@ -153,4 +219,4 @@ Prints the `cli.Version` value, which a host sets from its own build.
 | --- | --- |
 | `0` | The run succeeded, including a run that had nothing to change. |
 | `1` | A run failed, such as a host that could not write its configuration. |
-| `2` | A usage error: unknown command, invalid flag, or a missing `--host`. |
+| `2` | A usage error: unknown command, invalid flag, or a missing `--host` or `--agent`. |

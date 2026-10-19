@@ -40,6 +40,15 @@ func vscodeUserDir(home string) string {
 	}
 }
 
+// serverEntry builds VS Code's entry. Its MCP framework requires the
+// transport type on both forms, and silently ignores an entry without one.
+func serverEntry(opts common.Options) map[string]any {
+	if common.IsHTTP(opts) {
+		return common.AddType(common.ManagedHTTP(opts, "url"), common.TransportHTTP)
+	}
+	return common.AddType(common.ManagedServer(opts), common.TransportStdio)
+}
+
 // upsertMCP merges the managed entry into the VS Code configuration. VS Code
 // names its server table "servers" and long shipped "mcpServers", so an older
 // file is migrated onto the current key as it is written.
@@ -49,7 +58,7 @@ func upsertMCP(path string, opts common.Options) (bool, string, error) {
 		settingsLabel,
 		"servers",
 		opts.ServerName,
-		common.ManagedServer(opts),
+		serverEntry(opts),
 		nil,
 		opts,
 	)

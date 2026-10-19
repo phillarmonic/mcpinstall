@@ -182,9 +182,15 @@ func removeFromKey(path, label, serversKey, legacyKey, serverName string, opts O
 	return WriteJSON(path, cfg, opts)
 }
 
-// readJSONObject loads path as a JSON object. The bool reports whether the file
-// held content that could not be parsed, which callers degrade to a warning so
-// a malformed config is never clobbered.
+// ReadJSONObject loads path as a JSON object. The bool reports whether the
+// file held content that could not be parsed, which callers degrade to a
+// warning so a malformed config is never clobbered. It is exported for hosts
+// whose writer needs to inspect the document before choosing a key.
+func ReadJSONObject(path string) (map[string]any, bool, error) {
+	return readJSONObject(path)
+}
+
+// readJSONObject is the internal form ReadJSONObject wraps.
 func readJSONObject(path string) (map[string]any, bool, error) {
 	// #nosec G304 -- see RemoveMCPServerInKey.
 	data, err := os.ReadFile(path)

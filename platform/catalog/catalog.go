@@ -15,6 +15,7 @@ import (
 	"github.com/phillarmonic/mcpinstall/platform/copilot"
 	"github.com/phillarmonic/mcpinstall/platform/copilotjetbrains"
 	"github.com/phillarmonic/mcpinstall/platform/cursor"
+	"github.com/phillarmonic/mcpinstall/platform/hosts"
 	"github.com/phillarmonic/mcpinstall/platform/opencode"
 )
 
@@ -26,6 +27,28 @@ const (
 	CopilotJetBrains = "copilot-jetbrains"
 	Codex            = "codex"
 	Opencode         = "opencode"
+	OpenCode2        = "opencode2"
+	ClaudeDesktop    = "claude-desktop"
+	Gemini           = "gemini"
+	OpenClaw         = "openclaw"
+	OMP              = "omp"
+	Antigravity      = "antigravity"
+	Zero             = "zero"
+	ZCode            = "zcode"
+	Devin            = "devin"
+	Grok             = "grok"
+	Kimi             = "kimi"
+	Kiro             = "kiro"
+	CommandCode      = "command-code"
+	IBMBob           = "ibm-bob"
+	CopilotCLI       = "copilot-cli"
+	Droid            = "droid"
+	Swival           = "swival"
+	Zed              = "zed"
+	Muse             = "muse"
+	PrimeAgent       = "prime-agent"
+	DSH              = "dsh"
+	Pi               = "pi"
 )
 
 // All is the meta host name that selects every supported host at once. It is
@@ -34,9 +57,11 @@ const (
 // during resolution instead.
 const All = "all"
 
-// Adapters returns every supported host by catalog name.
+// Adapters returns every known host by catalog name. A host whose status is
+// unsupported is still present so an explicit selection can explain itself;
+// Names filters it out of "all".
 func Adapters() map[string]platform.Adapter {
-	return map[string]platform.Adapter{
+	adapters := map[string]platform.Adapter{
 		Claude:           claude.Adapter{},
 		Cursor:           cursor.Adapter{},
 		Copilot:          copilot.Adapter{},
@@ -44,14 +69,23 @@ func Adapters() map[string]platform.Adapter {
 		Codex:            codex.Adapter{},
 		Opencode:         opencode.Adapter{},
 	}
+	for name, adapter := range hosts.All() {
+		adapters[name] = adapter
+	}
+	return adapters
 }
 
-// Names returns the concrete host names in sorted order, one per adapter. It is
-// what the "all" meta name expands to, and what Statuses covers.
+// Names returns the concrete, supported host names in sorted order, one per
+// adapter. It is what the "all" meta name expands to. An adapter that only
+// carries guidance (dsh, pi) is still selectable by name but is not swept into
+// "all", because it has no configuration file to write.
 func Names() []string {
-	names := make([]string, 0, len(Adapters()))
-	for name := range Adapters() {
-		names = append(names, name)
+	adapters := Adapters()
+	names := make([]string, 0, len(adapters))
+	for name, adapter := range adapters {
+		if adapter.Status().Supported {
+			names = append(names, name)
+		}
 	}
 	sort.Strings(names)
 	return names
@@ -137,6 +171,42 @@ func normalize(name string) string {
 	switch folded {
 	case "openai", "chatgpt", "chat-gpt":
 		return Codex
+	case "claude-code":
+		return Claude
+	case "vscode", "vscode-copilot", "github-copilot":
+		return Copilot
+	case "github-copilot-cli":
+		return CopilotCLI
+	case "open-code":
+		return Opencode
+	case "opencode-v2", "open-code2":
+		return OpenCode2
+	case "gemini-cli":
+		return Gemini
+	case "antigravity-cli", "agy":
+		return Antigravity
+	case "kimi-code":
+		return Kimi
+	case "kiro-cli":
+		return Kiro
+	case "commandcode", "cmdc", "cmd":
+		return CommandCode
+	case "bob":
+		return IBMBob
+	case "factory-droid":
+		return Droid
+	case "oh-my-pi":
+		return OMP
+	case "muse-code", "musecode":
+		return Muse
+	case "primeagent":
+		return PrimeAgent
+	case "z-code":
+		return ZCode
+	case "open-claw":
+		return OpenClaw
+	case "deepseek-harness":
+		return DSH
 	default:
 		return folded
 	}

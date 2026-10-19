@@ -8,7 +8,13 @@ import (
 )
 
 func TestNamesAreSorted(t *testing.T) {
-	want := []string{"claude", "codex", "copilot", "copilot-jetbrains", "cursor", "opencode"}
+	want := []string{
+		"antigravity", "claude", "claude-desktop", "codex", "command-code",
+		"copilot", "copilot-cli", "copilot-jetbrains", "cursor", "devin",
+		"droid", "gemini", "grok", "ibm-bob", "kimi", "kiro", "muse",
+		"omp", "openclaw", "opencode", "opencode2", "prime-agent",
+		"swival", "zcode", "zed", "zero",
+	}
 	if got := Names(); !reflect.DeepEqual(got, want) {
 		t.Fatalf("Names() = %v, want %v", got, want)
 	}
@@ -47,6 +53,27 @@ func TestResolveListNormalisesInput(t *testing.T) {
 		{"Copilot JetBrains", CopilotJetBrains},
 		{"copilot_jetbrains", CopilotJetBrains},
 		{"copilot-jetbrains", CopilotJetBrains},
+		{"claude-code", Claude},
+		{"vscode-copilot", Copilot},
+		{"github-copilot", Copilot},
+		{"github-copilot-cli", CopilotCLI},
+		{"open-code", Opencode},
+		{"opencode-v2", OpenCode2},
+		{"gemini-cli", Gemini},
+		{"antigravity", Antigravity},
+		{"agy", Antigravity},
+		{"kimi-code", Kimi},
+		{"kiro-cli", Kiro},
+		{"commandcode", CommandCode},
+		{"cmdc", CommandCode},
+		{"bob", IBMBob},
+		{"factory-droid", Droid},
+		{"oh-my-pi", OMP},
+		{"muse-code", Muse},
+		{"primeagent", PrimeAgent},
+		{"z-code", ZCode},
+		{"open-claw", OpenClaw},
+		{"deepseek-harness", DSH},
 	}
 	for _, tc := range cases {
 		got, err := ResolveList(tc.input, "")
@@ -112,6 +139,8 @@ func TestResolveListExpandsTheMetaName(t *testing.T) {
 	// later duplicate, so the expansion is Names() with that host moved first.
 	rest := slices.DeleteFunc(slices.Clone(every), func(name string) bool { return name == Cursor })
 	cursorFirst := append([]string{Cursor}, rest...)
+	claudeRest := slices.DeleteFunc(slices.Clone(every), func(name string) bool { return name == Claude })
+	claudeFirst := append([]string{Claude}, claudeRest...)
 
 	cases := []struct {
 		input string
@@ -121,7 +150,7 @@ func TestResolveListExpandsTheMetaName(t *testing.T) {
 		{"ALL", every},
 		{"  all  ", every},
 		{"all,claude", every},
-		{"claude,all", every},
+		{"claude,all", claudeFirst},
 		{"cursor,all", cursorFirst},
 		{"all,all", every},
 	}

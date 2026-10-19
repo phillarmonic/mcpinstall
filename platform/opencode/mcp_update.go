@@ -78,11 +78,15 @@ func configDirFor(home string, lookupEnv func(string) string) string {
 	return filepath.Join(home, ".config", "opencode")
 }
 
-// serverEntry builds the local (stdio) MCP entry OpenCode expects. Its shape
-// differs from every other JSON host: the command and its arguments share one
-// array, and "type" is required so OpenCode can tell a local server from a
-// remote one.
+// serverEntry builds the MCP entry OpenCode expects. Its shape differs from
+// every other JSON host: the command and its arguments share one array, and
+// "type" is required so OpenCode can tell a local server from a remote one.
 func serverEntry(opts common.Options) map[string]any {
+	if common.IsHTTP(opts) {
+		entry := common.AddType(common.ManagedHTTP(opts, "url"), "remote")
+		entry["enabled"] = true
+		return entry
+	}
 	command := make([]any, 0, len(opts.Args)+1)
 	command = append(command, opts.Command)
 	for _, arg := range opts.Args {

@@ -18,10 +18,21 @@ import (
 type Options struct {
 	// ServerName is the MCP server key written into every host configuration.
 	ServerName string
-	// Command is the executable hosts are told to launch.
+	// Command is the executable hosts are told to launch for a stdio entry.
 	Command string
 	// Args are fixed arguments stored alongside the command.
 	Args []string
+	// Transport selects the entry shape: "stdio" or "http". Empty infers
+	// "http" when URL is set, otherwise "stdio".
+	Transport string
+	// URL is the remote MCP endpoint used by HTTP entries.
+	URL string
+	// TokenEnvVar names an environment variable holding the bearer token for
+	// hosts that support env-var indirection instead of a literal header.
+	TokenEnvVar string
+	// Headers are sent with every HTTP request. A host that cannot express a
+	// literal header may use TokenEnvVar instead.
+	Headers map[string]string
 	// EntryName is the server key an uninstall deletes. Empty deletes
 	// ServerName. Install ignores it.
 	EntryName string
@@ -101,6 +112,13 @@ func writeFile(path string, data []byte, opts Options) (bool, string, error) {
 		return false, "", err
 	}
 	return true, "", nil
+}
+
+// WriteText writes arbitrary text through the same atomic, idempotent path as
+// WriteJSON and WriteTOML. It is what the skill writer uses for a managed file
+// whose format belongs to another program.
+func WriteText(path string, data []byte, opts Options) (bool, string, error) {
+	return writeFile(path, data, opts)
 }
 
 // RemoveFile deletes path when it is empty of meaningful content. Under a dry

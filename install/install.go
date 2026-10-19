@@ -53,12 +53,16 @@ type Result struct {
 // request override the command or arguments.
 func resolveOptions(req Request) common.Options {
 	opts := common.Options{
-		ServerName: req.Spec.Name,
-		Command:    req.Spec.Command,
-		Args:       req.Spec.Args,
-		EntryName:  req.Options.EntryName,
-		Force:      req.Options.Force,
-		DryRun:     req.Options.DryRun,
+		ServerName:  req.Spec.Name,
+		Command:     req.Spec.Command,
+		Args:        req.Spec.Args,
+		Transport:   req.Spec.Transport,
+		URL:         req.Spec.URL,
+		TokenEnvVar: req.Spec.TokenEnvVar,
+		Headers:     req.Spec.Headers,
+		EntryName:   req.Options.EntryName,
+		Force:       req.Options.Force,
+		DryRun:      req.Options.DryRun,
 	}
 	if req.Options.Command != "" {
 		opts.Command = req.Options.Command
@@ -66,7 +70,32 @@ func resolveOptions(req Request) common.Options {
 	if len(req.Options.Args) > 0 {
 		opts.Args = req.Options.Args
 	}
+	if req.Options.Transport != "" {
+		opts.Transport = req.Options.Transport
+	}
+	if req.Options.URL != "" {
+		opts.URL = req.Options.URL
+	}
+	if len(req.Options.Headers) > 0 {
+		opts.Headers = mergeHeaders(opts.Headers, req.Options.Headers)
+	}
+	if req.Options.TokenEnvVar != "" {
+		opts.TokenEnvVar = req.Options.TokenEnvVar
+	}
 	return opts
+}
+
+// mergeHeaders overlays the caller's request headers on the Spec defaults, so
+// a flag wins over the embedded identity without discarding its other headers.
+func mergeHeaders(base, override map[string]string) map[string]string {
+	merged := make(map[string]string, len(base)+len(override))
+	for name, value := range base {
+		merged[name] = value
+	}
+	for name, value := range override {
+		merged[name] = value
+	}
+	return merged
 }
 
 // Run executes the request against every requested host. It returns one result
@@ -79,6 +108,11 @@ func Run(req Request, removing bool) ([]Result, error) {
 	}
 	target := platform.Target{Scope: req.Scope, Root: root}
 	opts := resolveOptions(req)
+	if !removing {
+		if err := common.Validate(opts); err != nil {
+			return nil, err
+		}
+	}
 
 	adapters := catalog.Adapters()
 	results := make([]Result, 0, len(req.Hosts))
@@ -89,6 +123,13 @@ func Run(req Request, removing bool) ([]Result, error) {
 		if !ok {
 			results = append(results, Result{Host: host, Error: fmt.Sprintf("unsupported host %q", host)})
 			failures++
+			continue
+		}
+		if aware, ok := adapter.(platform.ScopeSupport); ok && !aware.SupportsScope(req.Scope) {
+			results = append(results, Result{
+				Host:     host,
+				Warnings: []string{fmt.Sprintf("skipped: no %s-level configuration; pass --scope %s", req.Scope, otherScope(req.Scope))},
+			})
 			continue
 		}
 		result := runOne(adapter, target, opts, removing)
@@ -102,6 +143,14 @@ func Run(req Request, removing bool) ([]Result, error) {
 		return results, fmt.Errorf("%d of %d hosts failed", failures, len(req.Hosts))
 	}
 	return results, nil
+}
+
+// otherScope names the scope a host has instead of the one it was asked for.
+func otherScope(scope platform.Scope) platform.Scope {
+	if scope == platform.ScopeGlobal {
+		return platform.ScopeProject
+	}
+	return platform.ScopeGlobal
 }
 
 // runOne invokes a single adapter and normalises its outcome.

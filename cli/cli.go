@@ -18,6 +18,8 @@ import (
 	"github.com/phillarmonic/mcpinstall/platform"
 	"github.com/phillarmonic/mcpinstall/platform/catalog"
 	"github.com/phillarmonic/mcpinstall/platform/common"
+	"github.com/phillarmonic/mcpinstall/platform/hooks"
+	"github.com/phillarmonic/mcpinstall/platform/skills"
 )
 
 // Subcommand names.
@@ -28,6 +30,10 @@ const (
 	CommandInstallGuidance   = "install-guidance"
 	CommandUninstallGuidance = "uninstall-guidance"
 	CommandGlobalGuidance    = "global-guidance"
+	CommandInstallSkills     = "install-skills"
+	CommandUninstallSkills   = "uninstall-skills"
+	CommandInstallHooks      = "install-hooks"
+	CommandUninstallHooks    = "uninstall-hooks"
 	CommandHosts             = "hosts"
 	CommandVersion           = "version"
 	CommandHelp              = "help"
@@ -41,13 +47,44 @@ var Version = "dev"
 // so the string fields stay contiguous for the garbage collector's pointer
 // scan.
 type options struct {
-	hosts   string
-	scope   string
-	root    string
-	command string
-	format  string
-	force   bool
-	dryRun  bool
+	hosts       string
+	scope       string
+	root        string
+	command     string
+	transport   string
+	url         string
+	tokenEnvVar string
+	format      string
+	headers     headerFlags
+	force       bool
+	dryRun      bool
+}
+
+// headerFlags collects repeatable --header name=value flags.
+type headerFlags map[string]string
+
+func (h *headerFlags) String() string {
+	if h == nil || len(*h) == 0 {
+		return ""
+	}
+	pairs := make([]string, 0, len(*h))
+	for name, value := range *h {
+		pairs = append(pairs, name+"="+value)
+	}
+	slices.Sort(pairs)
+	return strings.Join(pairs, ",")
+}
+
+func (h *headerFlags) Set(value string) error {
+	name, headerValue, ok := strings.Cut(value, "=")
+	if !ok || strings.TrimSpace(name) == "" {
+		return fmt.Errorf("header must be name=value")
+	}
+	if *h == nil {
+		*h = headerFlags{}
+	}
+	(*h)[strings.TrimSpace(name)] = strings.TrimSpace(headerValue)
+	return nil
 }
 
 // program returns the CLI name used in usage text.
@@ -79,6 +116,14 @@ func Run(spec mcpinstall.Spec, args []string, stdout, stderr io.Writer) int {
 		return runApplyGuidance(spec, args[1:], stdout, stderr, install.GuidanceRequest{Removing: true})
 	case CommandGlobalGuidance:
 		return runGlobalGuidance(spec, args[1:], stdout, stderr)
+	case CommandInstallSkills:
+		return runApplySkills(spec, args[1:], stdout, stderr, false)
+	case CommandUninstallSkills:
+		return runApplySkills(spec, args[1:], stdout, stderr, true)
+	case CommandInstallHooks:
+		return runApplyHooks(spec, args[1:], stdout, stderr, false)
+	case CommandUninstallHooks:
+		return runApplyHooks(spec, args[1:], stdout, stderr, true)
 	case CommandHosts:
 		return runHosts(stdout)
 	case CommandVersion:
@@ -123,9 +168,13 @@ func runApply(spec mcpinstall.Spec, args []string, stdout, stderr io.Writer, rem
 		Scope: scope,
 		Root:  opts.root,
 		Options: common.Options{
-			Command: opts.command,
-			Force:   opts.force,
-			DryRun:  opts.dryRun,
+			Command:     opts.command,
+			Transport:   opts.transport,
+			URL:         opts.url,
+			TokenEnvVar: opts.tokenEnvVar,
+			Headers:     map[string]string(opts.headers),
+			Force:       opts.force,
+			DryRun:      opts.dryRun,
 		},
 	}
 
@@ -160,6 +209,10 @@ func parseApplyFlags(spec mcpinstall.Spec, name string, args []string, stderr io
 	fs.StringVar(&opts.scope, "scope", string(platform.ScopeProject), "configuration scope: project or global")
 	fs.StringVar(&opts.root, "root", "", "directory the scope resolves against (default: cwd, or home for global scope)")
 	fs.StringVar(&opts.command, "command", "", "executable hosts should launch (default \""+spec.Command+"\")")
+	fs.StringVar(&opts.transport, "transport", "", "entry transport: stdio or http (default: http when --url is set)")
+	fs.StringVar(&opts.url, "url", "", "remote MCP endpoint for http transport")
+	fs.StringVar(&opts.tokenEnvVar, "token-env-var", "", "environment variable holding the bearer token for hosts that support it")
+	fs.Var(&opts.headers, "header", "http header as name=value (repeatable)")
 	fs.StringVar(&opts.format, "format", "text", "output format: text or json")
 	fs.BoolVar(&opts.force, "force", false, "overwrite an existing managed entry")
 	fs.BoolVar(&opts.dryRun, "dry-run", false, "report pending changes without writing")
@@ -180,6 +233,12 @@ func parseApplyFlags(spec mcpinstall.Spec, name string, args []string, stderr io
 	if opts.format != "text" && opts.format != "json" {
 		printf(stderr, "unsupported format %q (supported: text, json)\n", opts.format)
 		return options{}, errors.New("unsupported format")
+	}
+	switch strings.ToLower(strings.TrimSpace(opts.transport)) {
+	case "", "auto", common.TransportStdio, common.TransportHTTP:
+	default:
+		printf(stderr, "unsupported transport %q (supported: stdio, http)\n", opts.transport)
+		return options{}, errors.New("unsupported transport")
 	}
 	return opts, nil
 }
@@ -244,8 +303,12 @@ func writeJSON(w io.Writer, scope platform.Scope, root string, req install.Reque
 
 // runHosts lists the supported hosts and how each stores its configuration.
 func runHosts(w io.Writer) int {
-	names := catalog.Names()
 	statuses := catalog.Statuses()
+	names := make([]string, 0, len(statuses))
+	for name := range statuses {
+		names = append(names, name)
+	}
+	slices.Sort(names)
 
 	// Size the column to the longest name so the listing stays aligned as hosts
 	// are added, rather than drifting into a hand-maintained width.
@@ -256,10 +319,277 @@ func runHosts(w io.Writer) int {
 
 	for _, name := range names {
 		status := statuses[name]
+		if !status.Supported {
+			printf(w, "%-*s guidance only\n", width, name)
+			continue
+		}
 		printf(w, "%-*s %s  key=%s\n", width, name, status.Capabilities.Format, status.Capabilities.ServersKey)
 	}
-	printf(w, "%-*s %s\n", width, catalog.All, "every host listed above")
+	printf(w, "%-*s %s\n", width, catalog.All, "every supported MCP host listed above")
 	return 0
+}
+
+// runApplySkills handles install-skills and uninstall-skills.
+func runApplySkills(spec mcpinstall.Spec, args []string, stdout, stderr io.Writer, removing bool) int {
+	name := CommandInstallSkills
+	if removing {
+		name = CommandUninstallSkills
+	}
+
+	var (
+		agent  string
+		scope  string
+		root   string
+		format string
+		force  bool
+		dryRun bool
+	)
+
+	fs := flag.NewFlagSet(name, flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	fs.StringVar(&agent, "agent", "", "comma-separated skills hosts, or "+skills.All+" (required)")
+	fs.StringVar(&scope, "scope", string(platform.ScopeProject), "skills scope: project or global")
+	fs.StringVar(&root, "root", "", "directory the scope resolves against (default: cwd, or home for global scope)")
+	fs.StringVar(&format, "format", "text", "output format: text or json")
+	fs.BoolVar(&force, "force", false, "replace a same-named skill that is not managed")
+	fs.BoolVar(&dryRun, "dry-run", false, "report pending changes without writing")
+
+	fs.Usage = func() {
+		printf(stderr, "usage: %s %s --agent <%s> [flags]\n\n", program(spec), name, strings.Join(append(skills.Names(), skills.Both, skills.All), "|"))
+		fs.PrintDefaults()
+	}
+
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	if strings.TrimSpace(agent) == "" {
+		printf(stderr, "%s %s requires --agent (supported: %s)\n\n", program(spec), name, strings.Join(append(skills.Names(), skills.Both, skills.All), ", "))
+		fs.Usage()
+		return 2
+	}
+	if format != "text" && format != "json" {
+		printf(stderr, "unsupported format %q (supported: text, json)\n", format)
+		return 2
+	}
+
+	agents, err := skills.ResolveList(agent)
+	if err != nil {
+		printf(stderr, "%v\n", err)
+		return 2
+	}
+	scopeValue, err := platform.ParseScope(scope)
+	if err != nil {
+		printf(stderr, "%v\n", err)
+		return 2
+	}
+	resolvedRoot, err := install.ResolveRoot(scopeValue, root)
+	if err != nil {
+		printf(stderr, "%v\n", err)
+		return 1
+	}
+
+	results, runErr := install.RunSkills(install.SkillRequest{
+		Spec:   spec,
+		Agents: agents,
+		Scope:  scopeValue,
+		Root:   root,
+		Force:  force,
+		DryRun: dryRun,
+	}, removing)
+
+	if format == "json" {
+		writeSkillsJSON(stdout, scopeValue, resolvedRoot, results, dryRun, removing)
+	} else {
+		writeSkillsText(stdout, scopeValue, resolvedRoot, results, removing, dryRun)
+	}
+
+	if runErr != nil {
+		printf(stderr, "%v\n", runErr)
+		return 1
+	}
+	return 0
+}
+
+func writeSkillsText(w io.Writer, scope platform.Scope, root string, results []install.SkillResult, removing, dryRun bool) {
+	if dryRun {
+		printf(w, "dry run: no files were written\n")
+	}
+	printf(w, "%s scope: %s\n\n", scope, root)
+
+	verb := "wrote"
+	switch {
+	case dryRun && removing:
+		verb = "would remove"
+	case dryRun:
+		verb = "would write"
+	case removing:
+		verb = "removed"
+	}
+
+	for _, result := range results {
+		if result.Error != "" {
+			printf(w, "%s: error: %s\n", result.Agent, result.Error)
+			continue
+		}
+		if len(result.Paths) == 0 {
+			printf(w, "%s: %s\n", result.Agent, install.UnchangedLabel(removing))
+		}
+		for _, path := range result.Paths {
+			printf(w, "%s: %s %s\n", result.Agent, verb, path)
+		}
+		for _, warning := range result.Warnings {
+			printf(w, "%s: warning: %s\n", result.Agent, warning)
+		}
+	}
+
+	printf(w, "\n%s\n", install.SkillSummary(results, removing, dryRun))
+}
+
+func writeSkillsJSON(w io.Writer, scope platform.Scope, root string, results []install.SkillResult, dryRun, removing bool) {
+	action := CommandInstallSkills
+	if removing {
+		action = CommandUninstallSkills
+	}
+	payload := map[string]any{
+		"action":  action,
+		"scope":   string(scope),
+		"root":    root,
+		"dry_run": dryRun,
+		"results": results,
+	}
+	encoder := json.NewEncoder(w)
+	encoder.SetIndent("", "  ")
+	_ = encoder.Encode(payload)
+}
+
+// runApplyHooks handles install-hooks and uninstall-hooks.
+func runApplyHooks(spec mcpinstall.Spec, args []string, stdout, stderr io.Writer, removing bool) int {
+	name := CommandInstallHooks
+	if removing {
+		name = CommandUninstallHooks
+	}
+
+	var (
+		agent  string
+		scope  string
+		root   string
+		format string
+		dryRun bool
+	)
+
+	fs := flag.NewFlagSet(name, flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	fs.StringVar(&agent, "agent", "", "comma-separated hooks hosts, or "+hooks.All+" (required)")
+	fs.StringVar(&scope, "scope", string(platform.ScopeGlobal), "hooks scope: project or global")
+	fs.StringVar(&root, "root", "", "directory the scope resolves against (default: cwd, or home for global scope)")
+	fs.StringVar(&format, "format", "text", "output format: text or json")
+	fs.BoolVar(&dryRun, "dry-run", false, "report pending changes without writing")
+
+	fs.Usage = func() {
+		printf(stderr, "usage: %s %s --agent <%s> [flags]\n\n", program(spec), name, strings.Join(append(hooks.Names(), hooks.All), "|"))
+		fs.PrintDefaults()
+	}
+
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	if strings.TrimSpace(agent) == "" {
+		printf(stderr, "%s %s requires --agent (supported: %s)\n\n", program(spec), name, strings.Join(append(hooks.Names(), hooks.All), ", "))
+		fs.Usage()
+		return 2
+	}
+	if format != "text" && format != "json" {
+		printf(stderr, "unsupported format %q (supported: text, json)\n", format)
+		return 2
+	}
+
+	hosts, err := hooks.ResolveList(agent)
+	if err != nil {
+		printf(stderr, "%v\n", err)
+		return 2
+	}
+	scopeValue, err := platform.ParseScope(scope)
+	if err != nil {
+		printf(stderr, "%v\n", err)
+		return 2
+	}
+	resolvedRoot, err := install.ResolveRoot(scopeValue, root)
+	if err != nil {
+		printf(stderr, "%v\n", err)
+		return 1
+	}
+
+	results, runErr := install.RunHooks(install.HookRequest{
+		Spec:   spec,
+		Hosts:  hosts,
+		Scope:  scopeValue,
+		Root:   root,
+		DryRun: dryRun,
+	}, removing)
+
+	if format == "json" {
+		writeHooksJSON(stdout, scopeValue, resolvedRoot, results, dryRun, removing)
+	} else {
+		writeHooksText(stdout, scopeValue, resolvedRoot, results, removing, dryRun)
+	}
+
+	if runErr != nil {
+		printf(stderr, "%v\n", runErr)
+		return 1
+	}
+	return 0
+}
+
+func writeHooksText(w io.Writer, scope platform.Scope, root string, results []install.HookResult, removing, dryRun bool) {
+	if dryRun {
+		printf(w, "dry run: no files were written\n")
+	}
+	printf(w, "%s scope: %s\n\n", scope, root)
+
+	verb := "wrote"
+	switch {
+	case dryRun && removing:
+		verb = "would remove"
+	case dryRun:
+		verb = "would write"
+	case removing:
+		verb = "removed"
+	}
+
+	for _, result := range results {
+		if result.Error != "" {
+			printf(w, "%s: error: %s\n", result.Host, result.Error)
+			continue
+		}
+		if len(result.Paths) == 0 {
+			printf(w, "%s: %s\n", result.Host, install.UnchangedLabel(removing))
+		}
+		for _, path := range result.Paths {
+			printf(w, "%s: %s %s\n", result.Host, verb, path)
+		}
+		for _, warning := range result.Warnings {
+			printf(w, "%s: warning: %s\n", result.Host, warning)
+		}
+	}
+
+	printf(w, "\n%s\n", install.HookSummary(results, removing, dryRun))
+}
+
+func writeHooksJSON(w io.Writer, scope platform.Scope, root string, results []install.HookResult, dryRun, removing bool) {
+	action := CommandInstallHooks
+	if removing {
+		action = CommandUninstallHooks
+	}
+	payload := map[string]any{
+		"action":  action,
+		"scope":   string(scope),
+		"root":    root,
+		"dry_run": dryRun,
+		"results": results,
+	}
+	encoder := json.NewEncoder(w)
+	encoder.SetIndent("", "  ")
+	_ = encoder.Encode(payload)
 }
 
 func runGlobalGuidance(spec mcpinstall.Spec, args []string, stdout, stderr io.Writer) int {
@@ -417,7 +747,7 @@ func runApplyGuidance(spec mcpinstall.Spec, args []string, stdout, stderr io.Wri
 
 // printUsage writes the top-level help.
 func printUsage(spec mcpinstall.Spec, w io.Writer) {
-	printf(w, `%[1]s install: register the %[2]s MCP server with a host.
+	printf(w, `%[1]s: install the %[2]s MCP server, skills and hooks.
 
 usage:
   %[1]s install              [flags]      register %[3]s with a host
@@ -427,14 +757,22 @@ usage:
   %[1]s uninstall-guidance   [flags]      remove project agent guidance
   %[1]s global-guidance install [flags]   install user-level agent guidance
   %[1]s global-guidance uninstall [flags] remove user-level agent guidance
-  %[1]s hosts                             list supported hosts
+  %[1]s install-skills       [flags]      install the Spec's Agent Skills
+  %[1]s uninstall-skills     [flags]      remove the Spec's Agent Skills
+  %[1]s install-hooks        [flags]      install the Spec's lifecycle hooks
+  %[1]s uninstall-hooks      [flags]      remove the Spec's lifecycle hooks
+  %[1]s hosts                             list supported MCP hosts
   %[1]s version                           print the version
 
 flags for install and uninstall:
   --host     comma-separated hosts, or all (supported: %[4]s)
   --scope    project (default) or global
   --root     directory the scope resolves against
-  --command  executable hosts should launch (default "%[3]s")
+  --command      executable hosts should launch (default "%[3]s")
+  --transport    stdio or http (default: http when --url is set)
+  --url          remote MCP endpoint for http transport
+  --header       http header as name=value (repeatable)
+  --token-env-var environment variable holding the bearer token
   --force    overwrite an existing managed entry
   --dry-run  report pending changes without writing
   --format   text (default) or json
@@ -444,6 +782,22 @@ flags for install-guidance, uninstall-guidance, and global-guidance:
   --harness  agent harness: copilot, cursor, codex, all (default: all)
   --force    overwrite existing guidance files
   --dry-run  report pending changes without writing
+
+flags for install-skills and uninstall-skills:
+  --agent    comma-separated skills hosts: claude, agents, devin, grok,
+             copilot-cli, hermes, both, all (required)
+  --scope    project (default) or global
+  --root     directory the scope resolves against
+  --force    replace a same-named skill that is not managed
+  --dry-run  report pending changes without writing
+  --format   text (default) or json
+
+flags for install-hooks and uninstall-hooks:
+  --agent    comma-separated hooks hosts, or all (required)
+  --scope    global (default) or project (Claude Code only)
+  --root     directory the scope resolves against
+  --dry-run  report pending changes without writing
+  --format   text (default) or json
 `,
 		program(spec), spec.Name, spec.Command, strings.Join(catalog.Selectors(), ", "))
 }

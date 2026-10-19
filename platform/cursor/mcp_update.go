@@ -14,8 +14,17 @@ func mcpPath(target platform.Target) string {
 	return target.Rel(".cursor", "mcp.json")
 }
 
+// serverEntry builds Cursor's entry: a plain stdio command, or the url and
+// headers shape its remote MCP reader takes.
+func serverEntry(opts common.Options) map[string]any {
+	if common.IsHTTP(opts) {
+		return common.ManagedHTTP(opts, "url")
+	}
+	return common.ManagedServer(opts)
+}
+
 func upsertMCP(path string, opts common.Options) (bool, string, error) {
-	return common.UpsertMCPServer(path, settingsLabel, opts.ServerName, common.ManagedServer(opts), opts)
+	return common.UpsertMCPServer(path, settingsLabel, opts.ServerName, serverEntry(opts), opts)
 }
 
 func removeMCP(path string, opts common.Options) (bool, string, error) {

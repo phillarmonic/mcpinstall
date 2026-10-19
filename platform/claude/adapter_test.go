@@ -122,6 +122,45 @@ func TestRemoveDeletesManagedEntry(t *testing.T) {
 	}
 }
 
+func TestInstallGlobalHonoursClaudeConfigDir(t *testing.T) {
+	home := t.TempDir()
+	configDir := filepath.Join(home, "claude-config")
+	t.Setenv("CLAUDE_CONFIG_DIR", configDir)
+
+	created, _, err := Adapter{}.Install(
+		platform.Target{Scope: platform.ScopeGlobal, Root: home},
+		testOptions,
+	)
+	if err != nil {
+		t.Fatalf("Install: %v", err)
+	}
+	want := filepath.Join(configDir, ".claude.json")
+	if len(created) != 1 || created[0] != want {
+		t.Fatalf("created = %v, want [%s]", created, want)
+	}
+}
+
+func TestInstallHTTPWritesTypedRemoteEntry(t *testing.T) {
+	root := t.TempDir()
+	opts := common.Options{
+		ServerName: "test-server",
+		Transport:  common.TransportHTTP,
+		URL:        "https://example.test/mcp",
+		Headers:    map[string]string{"Authorization": "Bearer token"},
+	}
+	if _, _, err := (Adapter{}).Install(platform.Target{Scope: platform.ScopeProject, Root: root}, opts); err != nil {
+		t.Fatalf("Install: %v", err)
+	}
+	entry := readServers(t, filepath.Join(root, ".mcp.json"))["test-server"].(map[string]any)
+	if entry["type"] != "http" || entry["url"] != "https://example.test/mcp" {
+		t.Fatalf("entry = %#v", entry)
+	}
+	headers, ok := entry["headers"].(map[string]any)
+	if !ok || headers["Authorization"] != "Bearer token" {
+		t.Fatalf("headers = %#v", entry["headers"])
+	}
+}
+
 func TestDryRunWritesNothing(t *testing.T) {
 	root := t.TempDir()
 

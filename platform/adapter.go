@@ -72,6 +72,14 @@ type AdapterStatus struct {
 	Supported    bool         `json:"supported"`
 }
 
+// ScopeSupport is implemented by an adapter that cannot configure every
+// scope. install.Run consults it before invoking the adapter, so a global-only
+// host selected through "all" is skipped with a warning instead of failing the
+// run.
+type ScopeSupport interface {
+	SupportsScope(scope Scope) bool
+}
+
 // Adapter distributes the MCP server entry into one host's
 // configuration file.
 type Adapter interface {

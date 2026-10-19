@@ -15,6 +15,12 @@ type Adapter struct{}
 // Name is the catalog name used to select this adapter.
 func (Adapter) Name() string { return "copilot-jetbrains" }
 
+// SupportsScope reports that the plugin has only a user-level file. A
+// project-scope run skips it instead of failing every other host.
+func (Adapter) SupportsScope(scope platform.Scope) bool {
+	return scope == platform.ScopeGlobal
+}
+
 // Status reports that the JetBrains plugin has a machine-readable MCP
 // configuration. Like VS Code it names its server table "servers", unlike the
 // "mcpServers" key the other hosts use.

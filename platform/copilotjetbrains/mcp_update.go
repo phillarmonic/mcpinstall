@@ -61,6 +61,15 @@ func configDirFor(goos, home string, lookupEnv func(string) string) string {
 	}
 }
 
+// serverEntry builds the JetBrains plugin's entry. It keeps the plain stdio
+// shape it has always read and names the transport on a remote entry.
+func serverEntry(opts common.Options) map[string]any {
+	if common.IsHTTP(opts) {
+		return common.AddType(common.ManagedHTTP(opts, "url"), common.TransportHTTP)
+	}
+	return common.ManagedServer(opts)
+}
+
 // upsertMCP merges the managed entry into the JetBrains configuration. The
 // plugin names its server table "servers", the same key VS Code uses, and has
 // never used the older "mcpServers" spelling. The strict writer is used so an
@@ -72,7 +81,7 @@ func upsertMCP(path string, opts common.Options) (bool, string, error) {
 		settingsLabel,
 		"servers",
 		opts.ServerName,
-		common.ManagedServer(opts),
+		serverEntry(opts),
 		opts,
 	)
 }

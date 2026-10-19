@@ -15,6 +15,7 @@ nav = [
   { "Installation" = "installation.md" },
   { "Hosts" = "hosts.md" },
   { "CLI reference" = "cli.md" },
+  { "Skills and hooks" = "skills-hooks.md" },
   { "Guidance" = "guidance.md" },
   { "Embedding" = "embedding.md" },
   { "Architecture" = "architecture.md" },
