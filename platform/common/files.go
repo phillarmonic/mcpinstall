@@ -36,6 +36,10 @@ type Options struct {
 	// EntryName is the server key an uninstall deletes. Empty deletes
 	// ServerName. Install ignores it.
 	EntryName string
+	// ToolMode selects how a host that groups MCP tools presents this server:
+	// "code-mode" keeps the host grouping, "native" exposes each tool on the
+	// provider's native tool list. Empty uses the host default.
+	ToolMode string
 	// Force overwrites a managed entry that is already present. Without it an
 	// existing entry is left exactly as the user left it.
 	Force bool

@@ -61,6 +61,7 @@ func resolveOptions(req Request) common.Options {
 		TokenEnvVar: req.Spec.TokenEnvVar,
 		Headers:     req.Spec.Headers,
 		EntryName:   req.Options.EntryName,
+		ToolMode:    req.Spec.ToolMode,
 		Force:       req.Options.Force,
 		DryRun:      req.Options.DryRun,
 	}
@@ -81,6 +82,9 @@ func resolveOptions(req Request) common.Options {
 	}
 	if req.Options.TokenEnvVar != "" {
 		opts.TokenEnvVar = req.Options.TokenEnvVar
+	}
+	if req.Options.ToolMode != "" {
+		opts.ToolMode = req.Options.ToolMode
 	}
 	return opts
 }

@@ -166,7 +166,7 @@ var descriptors = []Descriptor{
 		Host:  "copilot-cli",
 		Label: "GitHub Copilot CLI MCP settings",
 		Capabilities: platform.Capabilities{
-			MCP: true, Format: "json", ServersKey: "mcpServers",
+			MCP: true, Format: "json", ServersKey: "mcpServers", NativeTools: true,
 		},
 		Scopes: []platform.Scope{platform.ScopeGlobal},
 		Path:   copilotCLIPath,
@@ -239,7 +239,7 @@ var descriptors = []Descriptor{
 		Host:  "opencode2",
 		Label: "OpenCode V2 MCP settings",
 		Capabilities: platform.Capabilities{
-			MCP: true, Format: "json", ServersKey: "mcp.servers",
+			MCP: true, Format: "json", ServersKey: "mcp.servers", NativeTools: true,
 		},
 		Path:  opencode2Path,
 		Kind:  JSONNested,

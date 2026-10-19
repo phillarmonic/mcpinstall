@@ -143,13 +143,19 @@ func ibmBobEntry(opts common.Options) (map[string]any, error) {
 }
 
 func copilotCLIEntry(opts common.Options) (map[string]any, error) {
+	var entry map[string]any
 	if common.IsHTTP(opts) {
-		entry := common.AddType(common.ManagedHTTP(opts, "url"), common.TransportHTTP)
-		entry["tools"] = []any{"*"}
-		return entry, nil
+		entry = common.AddType(common.ManagedHTTP(opts, "url"), common.TransportHTTP)
+	} else {
+		entry = common.AddType(common.ManagedServer(opts), "local")
 	}
-	entry := common.AddType(common.ManagedServer(opts), "local")
 	entry["tools"] = []any{"*"}
+	if common.NativeTools(opts) {
+		// Copilot CLI's tool search may defer a server's tools out of the
+		// model's list. "never" keeps them always loaded, which is the direct
+		// tool surface this mode asks for.
+		entry["deferTools"] = "never"
+	}
 	return entry, nil
 }
 
@@ -200,19 +206,27 @@ func museEntry(opts common.Options) (map[string]any, error) {
 }
 
 func opencode2Entry(opts common.Options) (map[string]any, error) {
+	var entry map[string]any
 	if common.IsHTTP(opts) {
-		entry := common.AddType(common.ManagedHTTP(opts, "url"), "remote")
+		entry = common.AddType(common.ManagedHTTP(opts, "url"), "remote")
 		// Without oauth:false the beta probes the endpoint for OAuth metadata
 		// on every connect.
 		entry["oauth"] = false
-		return entry, nil
+	} else {
+		command := make([]any, 0, len(opts.Args)+1)
+		command = append(command, opts.Command)
+		for _, arg := range opts.Args {
+			command = append(command, arg)
+		}
+		entry = map[string]any{"type": "local", "command": command}
 	}
-	command := make([]any, 0, len(opts.Args)+1)
-	command = append(command, opts.Command)
-	for _, arg := range opts.Args {
-		command = append(command, arg)
+	if common.NativeTools(opts) {
+		// OpenCode routes MCP tools through Code Mode by default, which groups
+		// them under the execute tool. codemode:false keeps each tool on the
+		// provider's native list, which tool-heavy servers prefer.
+		entry["codemode"] = false
 	}
-	return map[string]any{"type": "local", "command": command}, nil
+	return entry, nil
 }
 
 func zcodeEntry(opts common.Options) (map[string]any, error) {

@@ -54,6 +54,7 @@ type options struct {
 	transport   string
 	url         string
 	tokenEnvVar string
+	toolMode    string
 	format      string
 	headers     headerFlags
 	force       bool
@@ -172,6 +173,7 @@ func runApply(spec mcpinstall.Spec, args []string, stdout, stderr io.Writer, rem
 			Transport:   opts.transport,
 			URL:         opts.url,
 			TokenEnvVar: opts.tokenEnvVar,
+			ToolMode:    opts.toolMode,
 			Headers:     map[string]string(opts.headers),
 			Force:       opts.force,
 			DryRun:      opts.dryRun,
@@ -212,6 +214,7 @@ func parseApplyFlags(spec mcpinstall.Spec, name string, args []string, stderr io
 	fs.StringVar(&opts.transport, "transport", "", "entry transport: stdio or http (default: http when --url is set)")
 	fs.StringVar(&opts.url, "url", "", "remote MCP endpoint for http transport")
 	fs.StringVar(&opts.tokenEnvVar, "token-env-var", "", "environment variable holding the bearer token for hosts that support it")
+	fs.StringVar(&opts.toolMode, "tool-mode", "", "tool surface for hosts that support it: code-mode or native")
 	fs.Var(&opts.headers, "header", "http header as name=value (repeatable)")
 	fs.StringVar(&opts.format, "format", "text", "output format: text or json")
 	fs.BoolVar(&opts.force, "force", false, "overwrite an existing managed entry")
@@ -233,6 +236,10 @@ func parseApplyFlags(spec mcpinstall.Spec, name string, args []string, stderr io
 	if opts.format != "text" && opts.format != "json" {
 		printf(stderr, "unsupported format %q (supported: text, json)\n", opts.format)
 		return options{}, errors.New("unsupported format")
+	}
+	if err := common.ValidateToolMode(opts.toolMode); err != nil {
+		printf(stderr, "%v\n", err)
+		return options{}, err
 	}
 	switch strings.ToLower(strings.TrimSpace(opts.transport)) {
 	case "", "auto", common.TransportStdio, common.TransportHTTP:
@@ -323,7 +330,11 @@ func runHosts(w io.Writer) int {
 			printf(w, "%-*s guidance only\n", width, name)
 			continue
 		}
-		printf(w, "%-*s %s  key=%s\n", width, name, status.Capabilities.Format, status.Capabilities.ServersKey)
+		nativeTools := ""
+		if status.Capabilities.NativeTools {
+			nativeTools = "  native-tools"
+		}
+		printf(w, "%-*s %s  key=%s%s\n", width, name, status.Capabilities.Format, status.Capabilities.ServersKey, nativeTools)
 	}
 	printf(w, "%-*s %s\n", width, catalog.All, "every supported MCP host listed above")
 	return 0
@@ -773,6 +784,8 @@ flags for install and uninstall:
   --url          remote MCP endpoint for http transport
   --header       http header as name=value (repeatable)
   --token-env-var environment variable holding the bearer token
+  --tool-mode    code-mode (default) or native; native exposes each tool on
+                 the provider's tool list where the host supports it
   --force    overwrite an existing managed entry
   --dry-run  report pending changes without writing
   --format   text (default) or json

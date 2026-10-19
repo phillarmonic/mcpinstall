@@ -35,6 +35,12 @@ type Spec struct {
 	// TokenEnvVar names the environment variable holding the bearer token for
 	// hosts that support env-var indirection (Codex, Droid, Prime Agent).
 	TokenEnvVar string
+	// ToolMode selects how a host that groups or defers MCP tools presents this
+	// server's tools. "code-mode" keeps the host default; "native" puts every
+	// tool on the provider's native tool list. OpenCode V2 and Copilot CLI
+	// honor the distinction today, and other hosts ignore it. The install flag
+	// --tool-mode overrides this per run.
+	ToolMode string
 	// Program is the CLI name shown in usage text, such as "backstage".
 	Program string
 	// Marker prefixes the managed guidance section and names the Cursor rule:

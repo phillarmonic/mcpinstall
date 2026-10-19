@@ -584,6 +584,43 @@ func TestOpenCodeInstallAndUninstallRoundTrip(t *testing.T) {
 	})
 }
 
+func TestInstallOpenCodeV2NativeToolMode(t *testing.T) {
+	clearCLIEnv(t)
+	root := t.TempDir()
+
+	code, stdout, stderr := run(t, "install", "--host", "opencode2", "--scope", "global", "--tool-mode", "native", "--root", root)
+	if code != 0 {
+		t.Fatalf("exit code = %d\nstdout = %q\nstderr = %q", code, stdout, stderr)
+	}
+
+	path := filepath.Join(root, ".config", "opencode", "opencode.jsonc")
+	mcp, ok := decodeObject(t, path)["mcp"].(map[string]any)
+	if !ok {
+		t.Fatalf("no mcp object in %s", path)
+	}
+	servers, ok := mcp["servers"].(map[string]any)
+	if !ok {
+		t.Fatalf("no mcp.servers object in %s", path)
+	}
+	entry, ok := servers[testSpec.Name].(map[string]any)
+	if !ok {
+		t.Fatalf("no %s entry in %s", testSpec.Name, path)
+	}
+	if entry["codemode"] != false {
+		t.Fatalf("codemode = %v, want false", entry["codemode"])
+	}
+}
+
+func TestInstallRejectsAnUnknownToolMode(t *testing.T) {
+	code, _, stderr := run(t, "install", "--host", "opencode2", "--tool-mode", "magic", "--root", t.TempDir())
+	if code != 2 {
+		t.Fatalf("exit code = %d, want 2", code)
+	}
+	if !strings.Contains(stderr, "unsupported tool mode") {
+		t.Fatalf("stderr = %q", stderr)
+	}
+}
+
 func decodeObject(t *testing.T, path string) map[string]any {
 	t.Helper()
 	data, err := os.ReadFile(path)

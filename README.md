@@ -70,6 +70,13 @@ func main() {
 }
 ```
 
+A spec whose tools work better on the provider's native tool list sets
+`ToolMode: "native"`. OpenCode V2 and Copilot CLI distinguish the two surfaces
+today: OpenCode writes `"codemode": false` instead of grouping the tools behind
+its Code Mode executor, and Copilot CLI writes `"deferTools": "never"` so tool
+search does not defer them. Other hosts ignore the setting, and
+`--tool-mode native` overrides it per run.
+
 An HTTP server sets `URL` instead of relying on `Command`. A Spec with a URL
 infers the HTTP transport:
 

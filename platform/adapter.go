@@ -64,6 +64,9 @@ type Capabilities struct {
 	ServersKey string `json:"servers_key"`
 	// MCP reports whether the host has a machine-readable MCP configuration.
 	MCP bool `json:"mcp"`
+	// NativeTools reports whether the host can expose MCP tools directly on
+	// the provider's tool list instead of grouping them behind one tool.
+	NativeTools bool `json:"native_tools"`
 }
 
 // AdapterStatus reports whether a host is supported and what it can do.

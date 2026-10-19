@@ -174,6 +174,20 @@ func TestRunDispatchesToTheNamedAdapter(t *testing.T) {
 	}
 }
 
+func TestResolveOptionsUsesTheSpecToolModeUnlessOverridden(t *testing.T) {
+	req := request(t.TempDir(), catalog.Claude)
+	req.Spec.ToolMode = common.ToolModeNative
+
+	if got := resolveOptions(req).ToolMode; got != common.ToolModeNative {
+		t.Fatalf("ToolMode = %q, want the Spec value %q", got, common.ToolModeNative)
+	}
+
+	req.Options.ToolMode = common.ToolModeCodeMode
+	if got := resolveOptions(req).ToolMode; got != common.ToolModeCodeMode {
+		t.Fatalf("ToolMode = %q, want the request override %q", got, common.ToolModeCodeMode)
+	}
+}
+
 func TestResolveRootHonoursOverride(t *testing.T) {
 	root := t.TempDir()
 

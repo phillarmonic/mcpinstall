@@ -176,6 +176,11 @@ V1 keeps the local server entry directly under `mcp`; V2 nests it under
 `mcp.servers`, has no `enabled` field, and sets `oauth: false` on a remote entry
 so the beta does not probe for OAuth metadata.
 
+V2 routes MCP tools through Code Mode by default, grouping them behind the
+`execute` tool. `--tool-mode native` (or `ToolMode: "native"` on the Spec) adds
+`"codemode": false` so each tool stays on the provider's native tool list.
+V1 has no equivalent field and ignores the request.
+
 ### Gemini CLI and Antigravity CLI
 
 Both use a 5000 ms `timeout`. Gemini names the remote URL `httpUrl`;
@@ -208,7 +213,9 @@ initialize handshake, so the entry pins `protocolNegotiation` to `legacy`.
 
 ### Copilot CLI and Factory Droid
 
-Copilot CLI's local and remote entries both carry `tools: ["*"]`. Droid expands
+Copilot CLI's local and remote entries both carry `tools: ["*"]`. With
+`--tool-mode native` they also carry `deferTools: "never"`, which keeps the
+server's tools always loaded instead of deferred to tool search. Droid expands
 `${VAR}` only inside headers, so a bearer supplied through `--token-env-var` is
 written as a variable reference rather than copied into the file.
 

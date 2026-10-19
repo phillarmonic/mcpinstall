@@ -41,6 +41,7 @@ The command set is identical for every caller.
 | `--url` | the Spec URL | Remote MCP endpoint for an HTTP entry. |
 | `--header` | the Spec headers | HTTP header as `name=value`; repeatable. |
 | `--token-env-var` | the Spec value | Environment variable holding the bearer for hosts that support indirection. |
+| `--tool-mode` | the Spec value, else the host default | `code-mode` groups tools behind the host's execution tool; `native` puts each tool on the provider's tool list. |
 | `--force` | `false` | Overwrite an existing managed entry. |
 | `--dry-run` | `false` | Report pending changes without writing. |
 | `--format` | `text` | `text` or `json`. |
@@ -51,8 +52,16 @@ mytool install --host claude,cursor --scope global
 mytool install --host all --command /opt/mytool/mytool-mcp
 mytool install --host gemini --scope global --url https://mytool.example.com/mcp \
   --header 'Authorization=Bearer token'
+mytool install --host opencode2 --scope global --tool-mode native
 mytool uninstall --host codex --dry-run
 ```
+
+`--tool-mode native` asks hosts that distinguish the two surfaces to expose the
+server's tools directly. OpenCode V2 writes `"codemode": false`, and Copilot CLI
+writes `"deferTools": "never"` so tool search does not defer the server's tools.
+Other hosts ignore the flag. A Spec can set the same preference with `ToolMode`,
+and the flag overrides it. Changing the mode of an entry that is already
+installed needs `--force`, like any other change to a managed entry.
 
 A host that has no configuration for the requested scope is skipped with a
 warning, so `--host all --scope project` still configures the project hosts.

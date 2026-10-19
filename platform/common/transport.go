@@ -28,6 +28,9 @@ func IsHTTP(opts Options) bool {
 // Validate checks the fields an install needs. Uninstall ignores the server
 // identity, so it never calls this.
 func Validate(opts Options) error {
+	if err := ValidateToolMode(opts.ToolMode); err != nil {
+		return err
+	}
 	if strings.TrimSpace(opts.ServerName) == "" {
 		return fmt.Errorf("server name is required")
 	}

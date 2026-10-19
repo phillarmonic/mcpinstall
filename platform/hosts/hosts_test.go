@@ -236,6 +236,52 @@ func TestHTTPEntriesMatchEachHostShape(t *testing.T) {
 	}
 }
 
+func TestCopilotCLIHonoursTheNativeToolMode(t *testing.T) {
+	for _, opts := range []common.Options{stdioOptions(), httpOptions()} {
+		opts.ToolMode = common.ToolModeNative
+		entry, err := All()["copilot-cli"].(Descriptor).Entry(opts)
+		if err != nil {
+			t.Fatalf("Entry: %v", err)
+		}
+		if entry["deferTools"] != "never" {
+			t.Fatalf("native mode entry = %#v, want deferTools:never", entry)
+		}
+	}
+}
+
+func TestCopilotCLILeavesToolSearchAsTheHostDefault(t *testing.T) {
+	entry, err := All()["copilot-cli"].(Descriptor).Entry(stdioOptions())
+	if err != nil {
+		t.Fatalf("Entry: %v", err)
+	}
+	if _, ok := entry["deferTools"]; ok {
+		t.Fatalf("default entry sets deferTools: %#v", entry)
+	}
+}
+
+func TestOpenCodeV2HonoursTheNativeToolMode(t *testing.T) {
+	for _, opts := range []common.Options{stdioOptions(), httpOptions()} {
+		opts.ToolMode = common.ToolModeNative
+		entry, err := All()["opencode2"].(Descriptor).Entry(opts)
+		if err != nil {
+			t.Fatalf("Entry: %v", err)
+		}
+		if value, ok := entry["codemode"]; !ok || value != false {
+			t.Fatalf("native mode entry = %#v, want codemode:false", entry)
+		}
+	}
+}
+
+func TestOpenCodeV2LeavesCodeModeAsTheHostDefault(t *testing.T) {
+	entry, err := All()["opencode2"].(Descriptor).Entry(stdioOptions())
+	if err != nil {
+		t.Fatalf("Entry: %v", err)
+	}
+	if _, ok := entry["codemode"]; ok {
+		t.Fatalf("default entry sets codemode: %#v", entry)
+	}
+}
+
 func TestTokenEnvIndirectionStaysOutOfTheFile(t *testing.T) {
 	opts := httpOptions()
 	delete(opts.Headers, "Authorization")
