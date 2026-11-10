@@ -139,8 +139,7 @@ mytool uninstall-hooks --agent claude
 
 ## Development
 
-This module is consumed locally with a `replace` directive until it is
-published:
+During development you can use a replace statement for testing without publishing
 
 ```
 replace github.com/phillarmonic/mcpinstall => ../phillarmonic/mcpinstall
