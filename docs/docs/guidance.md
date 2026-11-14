@@ -22,9 +22,10 @@ can embed Markdown, a `.mdc` Cursor rule, or JSON.
 
 | Harness file | Project scope | Global scope | Written as |
 | --- | --- | --- | --- |
-| `claude.md` | `.claude/instructions.md` | `~/.claude/instructions.md` | whole file |
+| `claude.md` | `.claude/CLAUDE.md` | `~/.claude/CLAUDE.md` | managed section |
 | `cursor.md` | `.cursor/instructions.md` | `~/.cursor/rules/<marker>.mdc` | whole file |
-| `copilot.md` | `.copilot/instructions.md` | `~/.copilot/instructions.md` | whole file |
+| `copilot.md` | `.github/copilot-instructions.md` | `~/.copilot/copilot-instructions.md` | managed section |
+| `copilot-jetbrains.md` | `.github/copilot-instructions.md` | `~/.config/github-copilot/intellij/global-copilot-instructions.md` | managed section |
 | `codex.md` | `AGENTS.md` | `~/.codex/AGENTS.md` | managed section |
 | `opencode.md` | `AGENTS.md` | `~/.config/opencode/AGENTS.md` | managed section |
 
@@ -39,9 +40,15 @@ A whole-file destination is owned by the tool. The file is written verbatim on
 install and removed on uninstall. An existing file is not overwritten unless
 `--force` is passed, so a user's own `instructions.md` is left alone.
 
-Codex and OpenCode read the shared `AGENTS.md`. The module writes only a
-delimited [managed section](glossary.md#managed-section) and leaves the rest of
-the file to the user:
+Codex and OpenCode read the shared `AGENTS.md`; Claude Code reads
+`.claude/CLAUDE.md`, and Copilot reads `.github/copilot-instructions.md` at
+project scope and `~/.copilot/copilot-instructions.md` at user scope. Copilot
+for JetBrains shares the repository file and adds
+`global-copilot-instructions.md` under `github-copilot/intellij` in its
+configuration directory, resolved from `XDG_CONFIG_HOME` or `LOCALAPPDATA` the
+same way the MCP adapter does. For each of these shared files the module writes
+only a delimited [managed section](glossary.md#managed-section) and leaves the
+rest of the file to the user:
 
 ```markdown
 <!-- mytool-guidance:begin -->
@@ -52,7 +59,10 @@ the file to the user:
 An install upserts the section in place and reports no change when the body
 already matches. An uninstall removes the section and deletes the file only
 when nothing else remains. Because Codex and OpenCode share `AGENTS.md`, they
-share one managed section rather than competing for the file.
+share one managed section rather than competing for the file. Claude Code and
+Copilot CLI likewise share the project `.claude/CLAUDE.md`, so one section
+serves both there, and all three Copilot surfaces share
+`.github/copilot-instructions.md` at project scope.
 
 ## Installing and removing
 

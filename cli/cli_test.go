@@ -477,7 +477,7 @@ func TestGlobalGuidanceDryRunReportsWithoutWriting(t *testing.T) {
 	if !strings.Contains(stdout, "would write") {
 		t.Fatalf("stdout = %q", stdout)
 	}
-	if _, err := os.Stat(filepath.Join(root, ".copilot", "instructions.md")); !os.IsNotExist(err) {
+	if _, err := os.Stat(filepath.Join(root, ".copilot", "copilot-instructions.md")); !os.IsNotExist(err) {
 		t.Fatal("dry run wrote a guidance file")
 	}
 }
