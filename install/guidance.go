@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 
@@ -69,7 +70,10 @@ func ApplyGuidance(spec mcpinstall.Spec, req GuidanceRequest) (map[string]string
 		}
 
 		dest := guidanceDestFor(spec, harnessName, req.Global)
-		outPath := filepath.Join(req.Root, dest.rel)
+		outPath := dest.rel
+		if !filepath.IsAbs(outPath) {
+			outPath = filepath.Join(req.Root, outPath)
+		}
 		changed, applyErr := applyGuidanceFile(spec, req, dest, filename, outPath)
 		if applyErr != nil {
 			return results, applyErr
@@ -223,8 +227,38 @@ func guidanceDestFor(spec mcpinstall.Spec, harnessName string, global bool) guid
 		return guidanceDest{rel: filepath.Join(".copilot", "copilot-instructions.md"), managed: true}
 	case harnessName == "copilot":
 		return guidanceDest{rel: filepath.Join(".github", "copilot-instructions.md"), managed: true}
+	// Copilot for JetBrains reads the same repository file, plus its own
+	// global-copilot-instructions.md in the plugin's configuration directory.
+	case harnessName == "copilot-jetbrains" && global:
+		return guidanceDest{rel: filepath.Join(copilotJetBrainsConfigDir(), "github-copilot", "intellij", "global-copilot-instructions.md"), managed: true}
+	case harnessName == "copilot-jetbrains":
+		return guidanceDest{rel: filepath.Join(".github", "copilot-instructions.md"), managed: true}
 	default:
 		return guidanceDest{rel: filepath.Join("."+harnessName, "instructions.md")}
+	}
+}
+
+// copilotJetBrainsConfigDir returns the directory the JetBrains plugin
+// resolves its configuration against, mirroring the MCP adapter: LOCALAPPDATA
+// on Windows and XDG_CONFIG_HOME elsewhere, each falling back to the home
+// directory. An absolute variable is returned as-is so the caller can write
+// outside the home root.
+func copilotJetBrainsConfigDir() string {
+	return copilotJetBrainsConfigDirFor(runtime.GOOS, os.Getenv)
+}
+
+func copilotJetBrainsConfigDirFor(goos string, lookupEnv func(string) string) string {
+	switch goos {
+	case "windows":
+		if local := strings.TrimSpace(lookupEnv("LOCALAPPDATA")); local != "" {
+			return local
+		}
+		return filepath.Join("AppData", "Local")
+	default:
+		if configHome := strings.TrimSpace(lookupEnv("XDG_CONFIG_HOME")); configHome != "" {
+			return configHome
+		}
+		return ".config"
 	}
 }
 
