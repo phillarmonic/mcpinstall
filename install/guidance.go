@@ -211,6 +211,18 @@ func guidanceDestFor(spec mcpinstall.Spec, harnessName string, global bool) guid
 		return guidanceDest{rel: filepath.Join(".config", "opencode", "AGENTS.md"), managed: true}
 	case harnessName == "opencode":
 		return guidanceDest{rel: "AGENTS.md", managed: true}
+	// Claude Code reads ~/.claude/CLAUDE.md as user memory and
+	// .claude/CLAUDE.md as project memory. Copilot CLI also reads the project
+	// file, so both harnesses share one managed section there.
+	case harnessName == "claude":
+		return guidanceDest{rel: filepath.Join(".claude", "CLAUDE.md"), managed: true}
+	// Copilot CLI reads ~/.copilot/copilot-instructions.md as personal
+	// instructions. The repository file is the one both Copilot CLI and
+	// Copilot in VS Code read.
+	case harnessName == "copilot" && global:
+		return guidanceDest{rel: filepath.Join(".copilot", "copilot-instructions.md"), managed: true}
+	case harnessName == "copilot":
+		return guidanceDest{rel: filepath.Join(".github", "copilot-instructions.md"), managed: true}
 	default:
 		return guidanceDest{rel: filepath.Join("."+harnessName, "instructions.md")}
 	}

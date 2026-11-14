@@ -633,7 +633,7 @@ tree does not need project guidance files.
 
 flags:
   --root     directory to treat as home (default: the user home directory)
-  --harness  agent harness: copilot, cursor, codex, all (default: all)
+  --harness  agent harness: claude, copilot, cursor, codex, all (default: all)
   --force    overwrite existing guidance files
   --dry-run  report pending changes without writing
 `, program(spec))
@@ -667,7 +667,7 @@ func runApplyGuidance(spec mcpinstall.Spec, args []string, stdout, stderr io.Wri
 	fs := flag.NewFlagSet(name, flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	fs.StringVar(&root, "root", "", rootHelp)
-	fs.StringVar(&harness, "harness", "all", "agent harness: copilot, cursor, codex, all (default: all)")
+	fs.StringVar(&harness, "harness", "all", "agent harness: claude, copilot, cursor, codex, all (default: all)")
 	fs.BoolVar(&force, "force", false, "overwrite existing guidance files")
 	fs.BoolVar(&dryRun, "dry-run", false, "report pending changes without writing")
 
@@ -792,7 +792,7 @@ flags for install and uninstall:
 
 flags for install-guidance, uninstall-guidance, and global-guidance:
   --root     project root, or home directory for global-guidance
-  --harness  agent harness: copilot, cursor, codex, all (default: all)
+  --harness  agent harness: claude, copilot, cursor, codex, all (default: all)
   --force    overwrite existing guidance files
   --dry-run  report pending changes without writing
 

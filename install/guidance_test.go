@@ -57,22 +57,40 @@ func TestApplyGuidanceGlobalCursorWritesAlwaysApplyRule(t *testing.T) {
 	}
 }
 
-func TestApplyGuidanceGlobalKeepsOtherHarnessLayout(t *testing.T) {
+func TestApplyGuidanceGlobalCopilotWritesPersonalInstructions(t *testing.T) {
 	root := t.TempDir()
 
 	results, err := ApplyGuidance(testSpec, GuidanceRequest{Root: root, Harness: "copilot", Global: true})
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := filepath.Join(root, ".copilot", "instructions.md")
+	want := filepath.Join(root, ".copilot", "copilot-instructions.md")
 	if results["copilot"] != want {
 		t.Fatalf("path = %q, want %q", results["copilot"], want)
+	}
+	body, err := os.ReadFile(want)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(body), testBegin) || !strings.Contains(string(body), "Always Use Test Tools First") {
+		t.Fatalf("copilot personal instructions missing managed body: %s", body)
+	}
+
+	removed, err := ApplyGuidance(testSpec, GuidanceRequest{Root: root, Harness: "copilot", Global: true, Removing: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if removed["copilot"] != want {
+		t.Fatalf("removed = %q, want %q", removed["copilot"], want)
+	}
+	if _, statErr := os.Stat(want); !os.IsNotExist(statErr) {
+		t.Fatal("copilot personal instructions survived uninstall")
 	}
 }
 
 func TestApplyGuidanceSkipsExistingUnlessForced(t *testing.T) {
 	root := t.TempDir()
-	req := GuidanceRequest{Root: root, Harness: "copilot"}
+	req := GuidanceRequest{Root: root, Harness: "cursor"}
 	if _, err := ApplyGuidance(testSpec, req); err != nil {
 		t.Fatal(err)
 	}
@@ -312,5 +330,123 @@ func TestApplyGuidanceOpenCodeAndCodexShareOneAgentsSection(t *testing.T) {
 	}
 	if _, err := os.Stat(path); !os.IsNotExist(err) {
 		t.Fatalf("AGENTS.md still exists after removing the only managed section: %v", err)
+	}
+}
+
+func TestApplyGuidanceClaudeWritesManagedClaudeMD(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, ".claude", "CLAUDE.md")
+	user := "# Project notes\nKeep this.\n"
+	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte(user), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	results, err := ApplyGuidance(testSpec, GuidanceRequest{Root: root, Harness: "claude"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if results["claude"] != path {
+		t.Fatalf("path = %q, want %q", results["claude"], path)
+	}
+	body, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(body)
+	if !strings.Contains(text, "# Project notes") || !strings.Contains(text, testBegin) {
+		t.Fatalf("managed install lost user text: %s", body)
+	}
+
+	second, err := ApplyGuidance(testSpec, GuidanceRequest{Root: root, Harness: "claude"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(second) != 0 {
+		t.Fatalf("repeat managed install reported changes: %v", second)
+	}
+
+	if _, err := ApplyGuidance(testSpec, GuidanceRequest{Root: root, Harness: "claude", Removing: true}); err != nil {
+		t.Fatal(err)
+	}
+	body, err = os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(body) != user {
+		t.Fatalf("leftover = %q, want %q", body, user)
+	}
+}
+
+func TestApplyGuidanceClaudeGlobalWritesHomeClaudeMD(t *testing.T) {
+	root := t.TempDir()
+
+	results, err := ApplyGuidance(testSpec, GuidanceRequest{Root: root, Harness: "claude", Global: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := filepath.Join(root, ".claude", "CLAUDE.md")
+	if results["claude"] != want {
+		t.Fatalf("path = %q, want %q", results["claude"], want)
+	}
+
+	removed, err := ApplyGuidance(testSpec, GuidanceRequest{Root: root, Harness: "claude", Global: true, Removing: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if removed["claude"] != want {
+		t.Fatalf("removed = %q, want %q", removed["claude"], want)
+	}
+	if _, statErr := os.Stat(want); !os.IsNotExist(statErr) {
+		t.Fatal("global Claude CLAUDE.md survived uninstall")
+	}
+}
+
+func TestApplyGuidanceCopilotWritesRepositoryInstructions(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, ".github", "copilot-instructions.md")
+	user := "# Project notes\nKeep this.\n"
+	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte(user), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	results, err := ApplyGuidance(testSpec, GuidanceRequest{Root: root, Harness: "copilot"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if results["copilot"] != path {
+		t.Fatalf("path = %q, want %q", results["copilot"], path)
+	}
+	body, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(body)
+	if !strings.Contains(text, "# Project notes") || !strings.Contains(text, testBegin) {
+		t.Fatalf("managed install lost user text: %s", body)
+	}
+
+	second, err := ApplyGuidance(testSpec, GuidanceRequest{Root: root, Harness: "copilot"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(second) != 0 {
+		t.Fatalf("repeat managed install reported changes: %v", second)
+	}
+
+	if _, err := ApplyGuidance(testSpec, GuidanceRequest{Root: root, Harness: "copilot", Removing: true}); err != nil {
+		t.Fatal(err)
+	}
+	body, err = os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(body) != user {
+		t.Fatalf("leftover = %q, want %q", body, user)
 	}
 }
